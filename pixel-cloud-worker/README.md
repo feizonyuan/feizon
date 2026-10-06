@@ -4,7 +4,11 @@
 
 视觉：黑 / 朱红 / 米白三色硬切，Inter Display 超粗体 + Newsreader 斜体衬线 + 思源黑体，红点主角，HUD 取景框，3D 粒子球，6× 时间超采样产生真实运动模糊。
 
-成片：[`final/cloud-shift.mp4`](final/cloud-shift.mp4)（1920×1080，60fps，H.264 + AAC，中英双语字幕）
+成片：
+- [`final/cloud-shift-4k.mp4`](final/cloud-shift-4k.mp4)：3840×2160 60fps 母版
+- [`final/cloud-shift.mp4`](final/cloud-shift.mp4)：1920×1080 60fps，由 4K 母版 Lanczos 下采样
+
+均为 H.264 + AAC，中英双语字幕。
 
 ## 分镜
 
@@ -40,7 +44,7 @@ GEMINI_KEY_FILE=/path/to/key python3 scripts/split_take.py
 # 2) 音频
 python3 scripts/audio.py
 # 3) 画面（可分段并行）
-node scripts/render.js --from 0 --to 3420 --out video.mp4
+node scripts/render.js --from 0 --to 3420 --scale 2 --crf 13 --out seg0.mp4   # --scale 2 = 4K
 # 预览某几帧
 node scripts/render.js --stills 2.9,17.6,42.5
 # 4) 合成

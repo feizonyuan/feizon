@@ -4,11 +4,13 @@
 
 const TL = window.TL, EV = TL.events, FPS = TL.fps;
 const SUBSAMPLES = window.SUBSAMPLES || 6, SHUTTER = 0.5; // 180° shutter
+const SCALE = window.SCALE || 1; // device-pixel multiplier: 2 renders a 3840x2160 master
 const main = document.getElementById('c');
+main.width = OW * SCALE; main.height = OH * SCALE;
 const M = main.getContext('2d');
-const layer = document.createElement('canvas'); layer.width = OW; layer.height = OH;
+const layer = document.createElement('canvas'); layer.width = OW * SCALE; layer.height = OH * SCALE;
 const L = layer.getContext('2d');
-const acc = document.createElement('canvas'); acc.width = OW; acc.height = OH;
+const acc = document.createElement('canvas'); acc.width = OW * SCALE; acc.height = OH * SCALE;
 const A = acc.getContext('2d');
 
 // [time, amplitude px, decay/s]
@@ -38,13 +40,13 @@ function sceneAt(t) {
 
 function drawWorld(ctx, t) {
   setCtx(ctx);
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
   ctx.globalAlpha = 1;
   const [sx, sy] = shakeAt(t);
   ctx.translate(sx, sy);
   const [s] = sceneAt(t);
   SCENE_FN[s.id](t);
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
   for (const [t0, a, k, col] of FLASHES) {
     if (t < t0 || t - t0 > 2) continue;
     const v = a * Math.exp(-(t - t0) * k);
@@ -74,7 +76,7 @@ function subtitles(t) {
 function renderFrame(t) {
   const dt = SHUTTER / FPS;
   A.setTransform(1, 0, 0, 1, 0, 0);
-  A.globalAlpha = 1; A.fillStyle = C.K; A.fillRect(0, 0, OW, OH);
+  A.globalAlpha = 1; A.fillStyle = C.K; A.fillRect(0, 0, acc.width, acc.height);
   for (let k = 0; k < SUBSAMPLES; k++) {
     const tk = SUBSAMPLES === 1 ? t : t - dt / 2 + (dt * k) / (SUBSAMPLES - 1);
     drawWorld(L, Math.max(0, tk));
@@ -84,6 +86,7 @@ function renderFrame(t) {
   M.setTransform(1, 0, 0, 1, 0, 0);
   M.globalAlpha = 1;
   M.drawImage(acc, 0, 0);
+  M.setTransform(SCALE, 0, 0, SCALE, 0, 0);
   setCtx(M);
   const [, idx] = sceneAt(t);
   const th = THEME[themeAt(t)];
