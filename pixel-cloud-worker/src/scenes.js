@@ -1,801 +1,659 @@
 'use strict';
-// Eight scenes of "Claude Code: Cloud Shift". Each draw(t) paints the 480x270 world for global time t
-// and may set CAM (zoom/pan). Event times come from timeline.json via window.TL.
+// "Claude Code: Cloud Shift" — eight editorial motion-graphics scenes.
+// Each scene paints the full 1920x1080 frame for global time t. Event times: window.TL.events.
 
-const E = () => window.TL.events;
-const GROUND = 196;
-let CAM = { x: W / 2, y: H / 2, zoom: 1 };
-function resetCam() { CAM = { x: W / 2, y: H / 2, zoom: 1 }; window.CAM = CAM; }
+const E = window.TL.events;
+const GY = 700; // ground line used by the container scenes
+const lab = (color, size = 22) => ({ fam: 'mono', size, color, track: 0.04 });
 
-// ---------------------------------------------------------------- 1. boot
-function sceneBoot(t) {
-  const e = E();
-  const dawn = easeInOut(seg(t, 1.6, 3.4));
-  nightSky(t, 1);
-  alpha(dawn, () => daySky(t));
-  // terminal lines
-  const term = 1 - seg(t, 3.0, 3.6);
-  if (term > 0) alpha(term, () => {
-    const l1 = '> SESSION START';
-    const n1 = Math.floor(seg(t, e.termType[0], e.termType[1]) * l1.length);
-    text5(l1.slice(0, n1), 14, 14, P.teal3, 1);
-    if (t > 1.4) {
-      const l2 = '> BOOTING CONTAINER';
-      text5(l2.slice(0, Math.floor(seg(t, 1.4, 2.0) * l2.length)), 14, 26, P.teal3, 1);
-      const pr = seg(t, 1.6, 2.8);
-      R(14, 38, 82, 6, P.teal2); R(15, 39, Math.round(80 * pr), 4, P.teal3);
-      text5(Math.round(pr * 100) + '%', 100, 38, P.teal3, 1);
+// container: two sliding halves; open 0..1 slides them apart.
+function container(x0, y0, w, h, o = {}) {
+  const open = o.open || 0, t = o.t || 0;
+  const halves = [[x0, -1], [x0 + w / 2, 1]];
+  for (const [hx, dir] of halves) {
+    c.save();
+    c.translate(dir * open * w * 0.36, 0);
+    c.beginPath(); c.rect(hx, y0, w / 2, h); c.clip();
+    rect(x0, y0, w, h, C.CR);
+    // content
+    ktext('CC-01', x0 + w / 2, y0 + h * 0.66, { fam: 'disp', w: 900, size: 170, color: C.INK, t, t0: o.textT0 == null ? -1 : o.textT0, align: 'center', stagger: 0.05, track: -0.04 });
+    text('CONTAINER', x0 + 28, y0 + 44, lab(C.INK, 16));
+    text('4 vCPU · 15 GB · LINUX', x0 + w - 28, y0 + h - 26, { ...lab(C.INK, 16), align: 'right' });
+    lineS(x0 + w / 2, y0 + 18, x0 + w / 2, y0 + h - 18, 'rgba(17,17,17,0.35)', 2);
+    c.restore();
+  }
+  // roof lamps
+  const lamps = o.lamps || [0, 0, 0];
+  for (let i = 0; i < 3; i++) {
+    const lx = x0 + w * (0.25 + i * 0.25), ly = y0 - 34;
+    const s = lamps[i];
+    if (s > 0) { withAlpha(0.25 * s, () => circle(lx, ly, 30 * s, C.RED)); rect(lx - 10 * s, ly - 10 * s, 20 * s, 20 * s, C.RED); }
+    else { c.strokeStyle = 'rgba(236,231,221,0.35)'; c.lineWidth = 1.5; c.strokeRect(lx - 9, ly - 9, 18, 18); }
+  }
+}
+
+// ---------------------------------------------------------------- 1. BOOT
+function sBoot(t) {
+  bg(C.K);
+  const z = 1 + 0.045 * cubicInOut(seg(t, 3.2, 6.4));
+  c.translate(CX, CY); c.scale(z, z); c.translate(-CX, -CY);
+  // measuring axes
+  const ax = expoOut(seg(t, 0.05, 1.0)), axA = 1 - seg(t, 1.7, 2.3);
+  if (axA > 0) withAlpha(axA, () => {
+    lineS(CX - 920 * ax, CY, CX + 920 * ax, CY, C.DIMK, 1.5);
+    lineS(CX, CY - 500 * ax, CX, CY + 500 * ax, C.DIMK, 1.5);
+    for (let i = -7; i <= 7; i++) {
+      if (!i) continue;
+      const k = expoOut(seg(t, 0.15 + Math.abs(i) * 0.04, 0.45 + Math.abs(i) * 0.04));
+      const hh = (i % 4 === 0 ? 30 : 14) * k;
+      lineS(CX + i * 120, CY - hh / 2, CX + i * 120, CY + hh / 2, 'rgba(236,231,221,0.32)', 1.5);
     }
-    if (Math.floor(t * 3) % 2 === 0) R(14 + textW(l1.slice(0, n1)) + 2, 14, 5, 7, P.teal3);
   });
-  // DING: ping rings
-  const d = t - e.ding;
-  if (d > 0 && d < 1) {
-    ring(240, 120, 6 + d * 120, 2, d < 0.5 ? P.gold : P.gold2);
-    if (d < 0.6) ring(240, 120, 4 + d * 70, 1, P.white);
-    star4(240, 120, Math.round(8 * (1 - d)), P.gold3, P.white);
+  // labels
+  if (t < E.ding) typed('> session start', CX + 60, CY - 44, t, E.termType[0], 14, lab(C.CR));
+  else if (t < 1.75) {
+    text('(a) POINT', CX + 60, CY - 44, lab(C.CR));
+    text('r = ' + (20 * clamp(spring(t - E.ding, 2.4, 6), 0, 1.3)).toFixed(2) + 'px', CX + 60, CY - 12, lab(C.GREY));
   }
-  burst(t, e.ding, { n: 18, x: 240, y: 120, spd: [40, 120], life: 0.8, size: 3, colors: [P.gold, P.gold3, P.white], shape: 'star', drag: 2, seed: 3 });
-  // cloud platform forms
-  const grow = seg(t, e.cloudForm, e.cloudForm + 0.9);
-  burst(t, e.cloudForm, { n: 30, x: 240, y: GROUND + 20, spd: [60, 200], ang: [Math.PI, Math.PI * 2], life: 0.7, size: 5, colors: [P.paper, P.sand], shape: 'disc', drag: 4, seed: 5 });
-  if (grow > 0) cloudGround(GROUND, grow, t);
-  // container drop
-  if (t > e.containerDrop) {
-    const k = seg(t, e.containerDrop, e.containerLand);
-    const y = lerp(-90, GROUND, easeInCubic(k));
-    const land = t - e.containerLand;
-    let sx = 1, sy = 1;
-    if (land > 0) { const q = Math.exp(-land * 7) * Math.cos(land * 30); sy = 1 - 0.18 * q; sx = 1 + 0.12 * q; }
-    else if (k > 0.3) { sy = 1.12; sx = 0.92; }
-    if (k < 1) for (let i = 0; i < 6; i++) R(178 + i * 24, y - 140 - rnd(i) * 30, 2, 40 + rnd(i + 4) * 30, P.white);
-    const lamps = [t > 3.3 ? 1 : 0, t > 3.6 ? 1 : 0, t > 3.9 ? 1 : 0];
-    drawSquashed(240, y, sx, sy, () => container(240, y, { lamps, windowGlow: t > 4.2 ? 0.6 + 0.4 * Math.sin(t * 6) : 0 }));
-    for (let i = 0; i < 3; i++) burst(t, 3.3 + i * 0.3, { n: 10, x: 195 + i * 45, y: GROUND - 75, spd: [30, 80], life: 0.5, size: 2, colors: [P.gold, P.white], shape: 'star', drag: 3, seed: 11 + i });
-    // landing dust
-    burst(t, e.containerLand, { n: 40, x: 240, y: GROUND, jx: 150, spd: [40, 160], ang: [Math.PI * 1.05, Math.PI * 1.95], grav: 140, life: 0.9, size: 6, colors: [P.paper, P.sand, P.sand2], shape: 'disc', drag: 3, seed: 7 });
-    burst(t, e.containerLand, { n: 16, x: 240, y: GROUND - 10, jx: 140, spd: [80, 220], ang: [Math.PI * 1.1, Math.PI * 1.9], grav: 300, life: 0.7, size: 2, colors: [P.gold, P.clay3], seed: 8 });
+  // the point
+  const r = 20 * spring(t - E.ding, 2.4, 6);
+  let dy = CY, sx = 1, sy = 1;
+  if (t > 1.6) {
+    const k = seg(t, 1.6, 1.95);
+    dy = lerp(CY, GY - 20, cubicIn(k));
+    if (k < 1) { sy = 1 + 0.3 * k; sx = 1 - 0.18 * k; }
+    else { const w = wobble(t - 1.95, 2.6, 6); sy = 1 - 0.4 * w; sx = 1 + 0.35 * w; dy = GY - 20 + 8 * w; }
   }
-  // floating code glyphs
-  if (t > 4.0) {
-    const glyphs = ['{', '}', '<', '>', '/', '#', '*', '+'];
-    for (let i = 0; i < 10; i++) {
-      const a = seg(t, 4.0 + i * 0.12, 4.4 + i * 0.12);
-      if (a <= 0) continue;
-      const x = 40 + rnd(i) * 400, y = 60 + rnd(i + 9) * 70 + Math.sin(t * 2 + i) * 4;
-      if (x > 150 && x < 330) continue;
-      text5(glyphs[i % glyphs.length], x, y, i % 2 ? P.clay : P.teal, 2, { shadow: P.sand2 });
-    }
+  if (t > E.ding && t < 2.4) withAlpha(0.7 * (1 - seg(t, 1.6, 2.2)), () => ringS(CX, CY, 290 * expoOut(seg(t, E.ding, E.ding + 1.0)), C.RED, 1.5));
+  for (let k = 0; k < 3; k++) {
+    const d = t - E.ding - k * 0.12;
+    if (d > 0 && d < 0.9) withAlpha(1 - d / 0.9, () => ringS(CX, CY, 30 + d * 700, k ? C.CR : C.RED, 2 - k * 0.4));
   }
-  CAM.zoom = 1 + 0.06 * easeInOut(seg(t, 3.2, 6.4));
-  CAM.y = H / 2 + 8 * easeInOut(seg(t, 3.2, 6.4));
-}
-
-function drawSquashed(ax, ay, sx, sy, fn) {
-  g.save(); g.translate(ax, ay); g.scale(sx, sy); g.translate(-ax, -ay); fn(); g.restore();
-}
-
-// ---------------------------------------------------------------- 2. wake
-function sceneWake(t) {
-  const e = E();
-  daySky(t);
-  cloudGround(GROUND, 1, t);
-  const open = easeOutBounce(seg(t, e.doorOpen, e.doorOpen + 0.5));
-  const lamps = [1, 1, 1];
-  // robot timeline
-  const hopK = seg(t, e.hop, e.hopLand);
-  const inDoor = t < e.hop;
-  const eyesOn = t < e.eyesOn ? 0 : (t < e.eyesOn + 0.35 ? (Math.floor(t * 25) % 2) : 1);
-  let face = 'normal', pose = 'idle';
-  if (t > e.bubbleIn + 0.4) face = 'focus';
-  if (t > e.exclaim) face = 'surprise';
-  if (t > e.salute) { face = 'happy'; pose = 'salute'; }
-  const robotOpts = { t, eyes: eyesOn, spark: t < e.eyesOn ? 0 : clamp((t - e.eyesOn) * 3), face, pose, look: t > e.bubbleIn + 0.4 && t < e.exclaim ? -1 : 0 };
-
-  container(240, GROUND, {
-    open, lamps,
-    interior: (dx, dy, dw, dh) => { if (inDoor) robot(240, dy + dh - 1, { ...robotOpts, shadow: false }); },
-  });
-  // steam on door open
-  burst(t, e.doorOpen, { n: 24, x: 240, y: GROUND - 60, jx: 40, spd: [20, 60], ang: [Math.PI * 1.2, Math.PI * 1.8], life: 1.2, size: 6, colors: [P.white, P.cream], shape: 'disc', drag: 1.5, seed: 21 });
-  // power-up burst
-  burst(t, e.eyesOn + 0.3, { n: 14, x: 240, y: GROUND - 52, spd: [40, 100], life: 0.6, size: 3, colors: [P.gold, P.white], shape: 'star', drag: 3, seed: 22 });
-
-  if (!inDoor) {
-    const x = 240, y0 = GROUND - 1, y1 = 216;
-    let y = lerp(y0, y1, hopK) - Math.sin(hopK * Math.PI) * 36;
-    const land = t - e.hopLand;
-    let sx = 1, sy = 1;
-    if (hopK < 1) { sy = 1.15; sx = 0.88; }
-    else if (land < 0.4) { const q = Math.exp(-land * 9) * Math.cos(land * 35); sy = 1 - 0.25 * q; sx = 1 + 0.2 * q; }
-    // jump on exclaim
-    const ex = t - e.exclaim;
-    if (ex > 0 && ex < 0.35) y -= Math.sin((ex / 0.35) * Math.PI) * 12;
-    const sal = t - e.salute;
-    if (sal > 0 && sal < 0.3) y -= Math.sin((sal / 0.3) * Math.PI) * 8;
-    robot(x, y, { ...robotOpts, sx, sy, scale: lerp(0.95, 1.15, hopK) });
-    burst(t, e.hopLand, { n: 20, x, y: y1, jx: 30, spd: [30, 90], ang: [Math.PI * 1.05, Math.PI * 1.95], grav: 100, life: 0.6, size: 4, colors: [P.paper, P.sand], shape: 'disc', drag: 3, seed: 23 });
-    // exclaim mark
-    if (ex > 0 && t < e.salute) {
-      const k = pop(t, e.exclaim, 0.25);
-      const s = Math.max(1, Math.round(4 * k));
-      text5('!', x + 22, y - 74 - Math.sin(t * 12) * 2, P.gold, s, { outline: P.ink });
-      burst(t, e.exclaim, { n: 12, x: x + 26, y: y - 64, spd: [40, 90], life: 0.5, size: 2, colors: [P.gold, P.white], drag: 3, seed: 24 });
-    }
-    // salute: OK! + sparkle
-    if (sal > 0) {
-      const k = pop(t, e.salute, 0.3);
-      const s = Math.max(1, Math.round(3 * k));
-      for (let i = 0; i < 8; i++) {
-        const a = (i / 8) * Math.PI * 2 + t;
-        line(x + 58 + Math.cos(a) * 18 * k, y - 58 + Math.sin(a) * 12 * k, x + 58 + Math.cos(a) * 26 * k, y - 58 + Math.sin(a) * 18 * k, P.gold, 2);
-      }
-      text5('OK!', x + 58, y - 68, P.paper, s, { align: 'center', outline: P.clay2 });
-      burst(t, e.salute, { n: 30, x, y: y - 70, spd: [60, 160], life: 0.9, size: 3, colors: CONFETTI, shape: 'star', drag: 2.5, grav: 60, seed: 25 });
-    }
+  if (t > E.ding && t < 1.6) withAlpha(0.18, () => circle(CX, CY, 38, C.CR));
+  if (t > E.ding && t < 3.0) push(() => { c.translate(CX, dy); c.scale(sx, sy); circle(0, 0, r, C.RED); });
+  // the line
+  if (t > 1.95) {
+    const k = expoOut(seg(t, 1.95, 2.55));
+    lineS(CX - 860 * k, GY, CX + 860 * k, GY, C.RED, 3);
+    if (t < 2.9) withAlpha(1 - seg(t, 2.6, 2.9), () => text('(b) LINE', CX - 860 * k, GY - 22, lab(C.CR)));
   }
-  // chat bubble from the user
-  if (t > e.bubbleIn) {
-    const k = easeOutBack(seg(t, e.bubbleIn, e.bubbleIn + 0.45));
-    const bx = Math.round(lerp(-200, 44, k)), by = 40;
-    const bw = 196, bh = 58;
-    const wob = t < e.exclaim ? 0 : Math.round(Math.sin((t - e.exclaim) * 30) * Math.exp(-(t - e.exclaim) * 6) * 3);
-    R(bx - 1 + wob, by - 1, bw + 2, bh + 2, P.ink);
-    R(bx + wob, by, bw, bh, P.paper);
-    R(bx + wob, by + bh - 4, bw, 4, P.sand);
-    // tail toward robot
-    for (let i = 0; i < 10; i++) R(bx + bw - 40 + i * 2 + wob, by + bh + i, 10 - i, 1, P.ink);
-    for (let i = 0; i < 8; i++) R(bx + bw - 39 + i * 2 + wob, by + bh + i - 1, 8 - i, 1, P.paper);
-    // header
-    R(bx + 6 + wob, by + 6, 52, 11, P.clay);
-    text5('NEW TASK', bx + 8 + wob, by + 8, P.paper, 1);
-    disc(bx + bw - 14 + wob, by + 11, 5, P.teal2); disc(bx + bw - 14 + wob, by + 10, 2, P.teal3);
-    const msg = '帮我做个像素风视频！';
-    const n = Math.floor(seg(t, e.bubbleIn + 0.4, e.bubbleIn + 1.4) * msg.length);
-    if (n > 0) ptext(msg.slice(0, n), bx + 8 + wob, by + 32, 16, P.ink);
-    const en = 'MAKE ME A PIXEL VIDEO!';
-    const m = Math.floor(seg(t, e.bubbleIn + 1.0, e.bubbleIn + 1.8) * en.length);
-    text5(en.slice(0, m), bx + 8 + wob, by + 44, P.sand3, 1);
-  }
-  CAM.zoom = 1.06 + 0.06 * easeOutCubic(seg(t, 6.4, 8.5));
-  CAM.y = H / 2 + 8 + 10 * easeOutCubic(seg(t, 6.4, 8.5));
-  const pulse = t > e.salute ? Math.exp(-(t - e.salute) * 5) * 0.06 : 0;
-  CAM.zoom += pulse;
-}
-
-// ---------------------------------------------------------------- 3. git clone
-function sceneClone(t) {
-  const e = E();
-  daySky(t, [P.sky1, P.sky2, P.sky3, P.sky4]);
-  // repo cloud (top right)
-  const rcx = 372, rcy = 44;
-  cloudBlob(rcx, rcy, 120, 40, P.steel3, P.steel, P.ink, 3);
-  R(rcx - 30, rcy - 14, 60, 15, P.ink); R(rcx - 29, rcy - 13, 58, 13, P.ink2);
-  text5('REPO', rcx + 6, rcy - 10, P.paper, 1, { align: 'center' });
-  // git branch icon
-  disc(rcx - 22, rcy - 11, 2, P.clay); disc(rcx - 22, rcy - 3, 2, P.clay); disc(rcx - 15, rcy - 7, 2, P.teal);
-  line(rcx - 22, rcy - 11, rcx - 22, rcy - 3, P.clay, 1); line(rcx - 22, rcy - 6, rcx - 15, rcy - 7, P.teal, 1);
-  cloudGround(GROUND + 18, 1, t);
-
-  // pipe extends down
-  const px0 = 360, py0 = rcy + 14;
-  const pk = easeOutBounce(seg(t, e.pipeDown, e.pipeClank));
-  const pyEnd = Math.round(lerp(py0, 150, pk));
-  // bulge travelling down on each tug
-  let bulgeY = -999, bulgeK = 0;
-  for (const tg of e.tugs) { const q = seg(t, tg - 0.1, tg + 0.45); if (q > 0 && q < 1) { bulgeY = lerp(py0, pyEnd, q); bulgeK = Math.sin(q * Math.PI); } }
-  const cq = seg(t, e.cratePop - 0.35, e.cratePop);
-  if (cq > 0 && cq < 1) { bulgeY = lerp(py0, pyEnd, cq); bulgeK = 1.6; }
-  for (let y = py0; y < pyEnd; y++) {
-    const b = Math.round(Math.max(0, 1 - Math.abs(y - bulgeY) / 12) * 6 * bulgeK);
-    R(px0 - 9 - b, y, 18 + b * 2, 1, P.ink);
-    R(px0 - 8 - b, y, 16 + b * 2, 1, P.teal2);
-    R(px0 - 5 - b, y, 4, 1, P.teal);
-    R(px0 - 4 - b, y, 1, 1, P.teal3);
-  }
-  for (let y = py0 + 20; y < pyEnd - 8; y += 26) { R(px0 - 11, y, 22, 5, P.ink); R(px0 - 10, y + 1, 20, 3, P.steel); }
-  // mouth flange
-  R(px0 - 13, pyEnd - 2, 26, 8, P.ink); R(px0 - 12, pyEnd - 1, 24, 6, P.steel); R(px0 - 12, pyEnd - 1, 24, 2, P.steel3);
-  R(px0 - 8, pyEnd + 4, 16, 2, P.night1);
-  burst(t, e.pipeClank, { n: 14, x: px0, y: pyEnd + 4, spd: [60, 140], ang: [0, Math.PI], grav: 300, life: 0.5, size: 2, colors: [P.gold, P.white], seed: 31 });
-  if (t > e.pipeClank && t < e.pipeClank + 0.5) bangText('CLANK!', px0 - 60, pyEnd - 10, t, e.pipeClank, 0.5, 2, P.paper, 2);
-
-  // robot pulls
-  const crateOut = t > e.cratePop;
-  let lean = 0, rx = 290, slide = 0;
-  for (const tg of e.tugs) {
-    const q = t - tg;
-    if (q > 0 && q < 0.5) lean = Math.max(lean, Math.sin(clamp(q / 0.5) * Math.PI));
-    if (q > 0) slide += 3 * easeOutCubic(clamp(q / 0.25));
-  }
-  rx -= slide;
-  const fallBack = t > e.cratePop ? easeOutCubic(seg(t, e.cratePop, e.cratePop + 0.3)) * (1 - seg(t, e.cratePop + 0.5, e.cratePop + 0.9)) : 0;
-  const ry = 216;
-  let pose = t > e.tugs[0] - 0.3 && !crateOut ? 'pull' : 'idle';
-  let face = pose === 'pull' ? (lean > 0.2 ? 'strain' : 'focus') : 'normal';
-  if (crateOut) face = 'surprise';
-  if (t > e.crateBurst) { pose = 'cheer'; face = 'happy'; }
-  const hand = [rx + 18, ry - 24];
-  if (!crateOut && t > e.pipeClank) {
-    // rope
-    const sag = (1 - lean) * 6;
-    let lx = px0, ly = pyEnd + 5;
-    for (let i = 1; i <= 12; i++) {
-      const f = i / 12;
-      const x = lerp(px0, hand[0] - lean * 4, f), y = lerp(pyEnd + 5, hand[1], f) + Math.sin(f * Math.PI) * sag;
-      line(lx, ly, x, y, P.ink, 3); line(lx, ly, x, y, P.gold2, 1);
-      lx = x; ly = y;
-    }
-  }
-  const tugSquash = lean * 0.12;
-  robot(rx - fallBack * 14, ry, { t, pose, face, lean: -lean * 5 - fallBack * 4, sx: 1 + tugSquash, sy: 1 - tugSquash, scale: 1.1 });
-  // sweat drops
-  for (const tg of e.tugs) burst(t, tg, { n: 5, x: rx - 4, y: ry - 66, spd: [40, 70], ang: [Math.PI * 1.1, Math.PI * 1.6], grav: 250, life: 0.5, size: 2, colors: [P.teal3, P.white], seed: 33 + tg });
-  const words = ['HEAVE!', 'HO!', 'HEAVE!!'];
-  e.tugs.forEach((tg, i) => bangText(words[i], rx - 40 + i * 6, ry - 92 - i * 4, t, tg, 0.55, 2, P.paper, i + 4));
-
-  // crate
-  if (crateOut) {
-    const k = seg(t, e.cratePop, e.cratePop + 0.45);
-    const cx = lerp(px0, 340, k), cy = lerp(pyEnd + 10, 216, easeInQuad(k)) - Math.sin(k * Math.PI) * 40;
-    const land = t - (e.cratePop + 0.45);
+  burst(t, 1.95, { n: 26, x: CX, y: GY, spd: [200, 700], ang: [Math.PI * 1.05, Math.PI * 1.95], life: 0.7, size: 7, colors: [C.RED, C.CR], seed: 3 });
+  // the plane: container drops
+  if (t > E.containerDrop) {
+    const k = seg(t, E.containerDrop, E.containerLand);
+    const w = 760, h = 320;
+    let y0 = lerp(-420, GY - h, cubicIn(k));
     let sq = 0;
-    if (land > 0) sq = Math.exp(-land * 8) * Math.cos(land * 32) * 0.2;
-    const burstT = t - e.crateBurst;
-    drawSquashed(cx, cy, 1 + sq, 1 - sq, () => {
-      R(cx - 19, cy - 30, 38, 30, P.ink);
-      R(cx - 18, cy - 29, 36, 28, P.clay2);
-      for (let i = 0; i < 4; i++) R(cx - 18, cy - 26 + i * 7, 36, 1, P.clay4);
-      R(cx - 18, cy - 29, 3, 28, P.clay); R(cx + 15, cy - 29, 3, 28, P.clay);
-      R(cx - 12, cy - 21, 24, 11, P.ink); R(cx - 11, cy - 20, 22, 9, P.paper);
-      text5('GIT', cx, cy - 19, P.clay2, 1, { align: 'center' });
-      if (burstT < 0) { R(cx - 21, cy - 33, 42, 5, P.ink); R(cx - 20, cy - 32, 40, 3, P.clay); }
+    if (t > E.containerLand) sq = wobble(t - E.containerLand, 2.4, 6) * 0.08;
+    push(() => {
+      c.translate(CX, GY); c.scale(1 + sq, 1 - sq); c.translate(-CX, -GY);
+      const lamps = [0, 1, 2].map(i => clamp(spring(t - (3.3 + i * 0.3), 3, 7), 0, 1.4));
+      container(CX - w / 2, y0, w, h, { t, textT0: 3.05, lamps });
     });
-    burst(t, e.cratePop + 0.45, { n: 26, x: cx, y: 216, jx: 40, spd: [30, 110], ang: [Math.PI * 1.05, Math.PI * 1.95], grav: 120, life: 0.7, size: 5, colors: [P.paper, P.sand], shape: 'disc', drag: 3, seed: 35 });
-    if (burstT > 0) {
-      // lid flies off spinning
-      const lk = burstT;
-      g.save(); g.translate(Math.round(cx + lk * 90), Math.round(cy - 33 - lk * 160 + lk * lk * 260)); g.rotate(lk * 9);
-      R(-21, -3, 42, 5, P.ink); R(-20, -2, 40, 3, P.clay); g.restore();
-      // files erupt
-      burst(t, e.crateBurst, {
-        n: 34, x: cx, y: cy - 30, spd: [120, 260], ang: [Math.PI * 1.2, Math.PI * 1.8], grav: 260, drag: 1.2, life: 1.8, size: 1, shrink: 0, colors: CONFETTI, seed: 36,
-        draw: (x, y, s, col, lt, i) => { R(x - 4, y - 5, 9, 11, P.ink); R(x - 3, y - 4, 7, 9, P.paper); R(x + 1, y - 4, 3, 3, P.sand2); R(x - 2, y - 1, 5, 1, col); R(x - 2, y + 1, 4, 1, col); R(x - 2, y + 3, 5, 1, P.sand2); },
-      });
-      burst(t, e.crateBurst, { n: 30, x: cx, y: cy - 30, spd: [60, 200], life: 1, size: 3, colors: [P.gold, P.white, P.gold3], shape: 'star', drag: 2.5, seed: 37 });
-      const bk = pop(t, e.crateBurst + 0.3, 0.4);
-      if (bk > 0) {
-        const s = Math.max(1, Math.round(3 * bk));
-        text5('REPO ACQUIRED!', 240, 92 + Math.sin(t * 8) * 2, P.gold, s, { align: 'center', outline: P.ink });
-      }
-    }
+    if (t > E.containerLand && t < 4.2) withAlpha(1 - seg(t, 3.8, 4.2), () => text('(c) PLANE', CX - w / 2, GY - h - 70, lab(C.CR)));
+    burst(t, E.containerLand, { n: 60, x: CX, y: GY, jx: 760, spd: [100, 520], ang: [Math.PI * 1.08, Math.PI * 1.92], grav: 900, life: 0.9, size: 8, colors: [C.CR, C.CR, C.RED], shape: 'sq', seed: 7 });
+    burst(t, E.containerLand, { n: 30, x: CX, y: GY, jx: 700, spd: [300, 900], ang: [Math.PI * 1.1, Math.PI * 1.9], life: 0.5, size: 10, colors: [C.CR], shape: 'line', seed: 8 });
   }
-  CAM.zoom = 1.04;
-  const pk2 = t > e.cratePop ? Math.exp(-(t - e.cratePop) * 4) * 0.05 : 0;
-  CAM.zoom += pk2;
+  // status readout
+  const rows = [['STATUS', 'READY'], ['REGION', 'CLOUD'], ['UPTIME', '00:00:0' + Math.max(0, Math.floor(t - 3))]];
+  rows.forEach(([k, v], i) => {
+    const t0 = 4.1 + i * 0.18;
+    if (t < t0) return;
+    const s = `${k} ${'.'.repeat(12)} ${v}`;
+    typed(s, 150, 800 + i * 32, t, t0, 60, lab(i === 0 ? C.CR : C.GREY, 18));
+  });
 }
 
-// ---------------------------------------------------------------- 4. coding
-function sceneCode(t) {
-  const e = E();
-  daySky(t, [P.sky1, P.sky2, P.sky3, P.sky4]);
-  cloudGround(GROUND + 22, 1, t);
-  // desk
-  R(118, 190, 300, 8, P.ink); R(119, 191, 298, 6, P.clay2); R(119, 191, 298, 2, P.clay);
-  R(130, 198, 8, 40, P.ink); R(398, 198, 8, 40, P.ink);
-  // monitor
-  const mx = 262, my = 70, mw = 132, mh = 104;
-  const glow = 0.4 + 0.2 * Math.sin(t * 20);
-  alpha(0.25, () => disc(mx + mw / 2, my + mh / 2, 90, P.teal3));
-  R(mx - 2, my - 2, mw + 4, mh + 4, P.ink);
-  R(mx, my, mw, mh, P.sand); R(mx, my, mw, 3, P.cream); R(mx + mw - 6, my, 6, mh, P.sand2);
-  R(mx + mw / 2 - 12, my + mh + 2, 24, 8, P.ink); R(mx + mw / 2 - 20, my + mh + 8, 40, 4, P.ink);
-  const sx = mx + 8, sy = my + 8, sw = mw - 20, sh = mh - 24;
-  R(sx - 1, sy - 1, sw + 2, sh + 2, P.ink); R(sx, sy, sw, sh, P.night1);
-  R(mx + 10, my + mh - 12, 6, 4, Math.sin(t * 7) > 0 ? P.green : P.teal2);
-  g.save(); g.beginPath(); g.rect(sx, sy, sw, sh); g.clip();
-  if (t < e.miniRobot) {
-    const speed = 30 + 120 * seg(t, e.typing[0], e.miniRobot);
-    const scroll = (t - e.typing[0]) * speed;
-    const lineH = 6, first = Math.floor(scroll / lineH);
-    const cols = [P.clay, P.teal, P.gold, P.paper, P.purple, P.clay3, P.green];
-    for (let i = first; i < first + Math.ceil(sh / lineH) + 2; i++) {
-      const y = sy + sh - 6 - (scroll - i * lineH) * -1 - first * 0;
-      const yy = sy + (i * lineH - scroll) + sh * 0.2;
-      if (yy < sy - 6 || yy > sy + sh) continue;
-      const ind = Math.floor(rnd(i * 3) * 4) * 6;
-      let x = sx + 4 + ind;
-      text5(String((i % 99) + 1).padStart(2, '0'), sx + 2, yy, P.ink3, 1);
-      x += 14;
-      const parts = 1 + Math.floor(rnd(i * 7) * 4);
-      for (let p = 0; p < parts; p++) {
-        const w = 6 + Math.floor(rnd(i * 11 + p) * 26);
-        if (x + w > sx + sw - 2) break;
-        R(x, yy + 1, w, 4, cols[Math.floor(rnd(i * 5 + p) * cols.length)]);
-        x += w + 4;
-      }
+// ---------------------------------------------------------------- 2. WAKE
+function sWake(t) {
+  if (t < E.bubbleIn) {
+    bg(C.K);
+    const z = 1.045 + 0.13 * cubicOut(seg(t, 6.4, 8.4));
+    c.translate(CX, 600); c.scale(z, z); c.translate(-CX, -600);
+    lineS(CX - 860, GY, CX + 860, GY, C.RED, 3);
+    const open = expoInOut(seg(t, E.doorOpen, E.doorOpen + 0.55));
+    const hop = seg(t, E.hop, E.hopLand);
+    const inside = t < E.hop;
+    const eyesOff = t < E.eyesOn || (t < E.eyesOn + 0.3 && Math.floor(t * 30) % 2 === 0);
+    if (inside) {
+      if (t > E.eyesOn) withAlpha(0.25 * (0.6 + 0.4 * Math.sin(t * 10)), () => circle(CX, 640, 70, C.RED));
+      hero(CX, 640, 40, { t, eyesOff });
     }
-    // cursor
-    if (Math.floor(t * 8) % 2) R(sx + 20 + (Math.floor(t * 30) % 60), sy + sh * 0.2 + 2, 4, 6, P.paper);
-  } else {
-    // mini robot appears inside the screen (recursion gag)
-    const k = seg(t, e.miniRobot, e.miniRobot + 0.3);
-    ditherGradient(sy, sy + sh, [P.sky1, P.sky3]);
-    alpha(1, () => R(sx, sy + sh - 14, sw, 14, P.paper));
-    robot(sx + sw / 2, sy + sh - 6, { t, pose: 'wave', face: 'happy', scale: 0.7 * easeOutBack(k), shadow: false });
-    text5('HELLO!', sx + sw / 2, sy + 6, P.clay2, 1, { align: 'center' });
-    // scanline wipe
-    if (k < 1) R(sx, sy + sh * k, sw, sh * (1 - k), P.night1);
-    R(sx, sy + sh * k - 2, sw, 2, P.white);
-  }
-  // CRT lines
-  for (let y = sy; y < sy + sh; y += 2) alpha(0.12, () => R(sx, y, sw, 1, P.ink));
-  g.restore();
-  burst(t, e.miniRobot, { n: 24, x: sx + sw / 2, y: sy + sh / 2, spd: [60, 160], life: 0.7, size: 3, colors: [P.gold, P.white, P.teal3], shape: 'star', drag: 2, seed: 41 });
-
-  // robot + keyboard
-  const typing = t > e.typing[0] - 0.2 && t < e.typing[1];
-  const rx = 196, ry = 214;
-  const bounce = typing ? Math.round(Math.abs(Math.sin(t * 20))) : 0;
-  const face = t > e.miniRobot && t < e.miniRobot + 1.2 ? 'surprise' : typing ? 'focus' : 'happy';
-  robot(rx, ry - bounce, { t, pose: typing ? 'type' : 'cheer', face, look: 1, scale: 1.1, shadow: false });
-  // keyboard
-  const kx = 160, ky = 182;
-  R(kx - 1, ky - 1, 74, 14, P.ink); R(kx, ky, 72, 12, P.steel3); R(kx, ky + 10, 72, 2, P.steel);
-  for (let r = 0; r < 3; r++) for (let c = 0; c < 11; c++) {
-    const on = typing && rnd(c * 13 + r * 7 + Math.floor(t * 24) * 3) > 0.8;
-    R(kx + 2 + c * 6 + (r % 2), ky + 1 + r * 3, 5, 2, on ? P.gold : P.paper);
-  }
-  // steam from overheating
-  stream(t, e.sparks[4], e.typing[1] + 0.6, 6, 1.2, (age, bt, j) => {
-    smokePuff(rx - 10 + rnd(j) * 20 + age * 8, ry - 70 - age * 30, 3 + age * 5, P.white, 1 - age / 1.2);
-  });
-  // rising bits from keyboard
-  if (typing) stream(t, e.typing[0], e.typing[1], 14, 1.4, (age, bt, j) => {
-    const chars = ['0', '1', '{', '}', '<', '>', ';', '='];
-    const x = kx + 10 + rnd(j) * 60 + Math.sin(age * 6 + j) * 4;
-    const y = ky - 6 - age * 60;
-    text5(chars[j % chars.length], x, y, [P.clay, P.teal, P.gold2, P.purple][j % 4], 1);
-  });
-  // sparks
-  e.sparks.forEach((st, i) => {
-    burst(t, st, { n: 22, x: kx + 20 + (i * 17) % 40, y: ky, spd: [80, 200], ang: [Math.PI * 1.05, Math.PI * 1.95], grav: 400, life: 0.5, size: 2, colors: [P.gold, P.gold3, P.white, P.clay3], seed: 42 + i });
-    const d = t - st;
-    if (d > 0 && d < 0.1) alpha(0.6, () => disc(kx + 20 + (i * 17) % 40, ky, 14, P.gold3));
-  });
-  // WPM meter
-  const wpm = Math.floor(lerp(60, 9999, easeInCubic(seg(t, e.typing[0], e.typing[1]))));
-  R(10, 10, 92, 15, P.ink); R(11, 11, 90, 13, P.ink2);
-  text5('WPM ' + String(wpm).padStart(4, '0'), 16, 14, wpm > 5000 ? P.clay3 : P.gold, 1);
-  const bar = seg(t, e.typing[0], e.typing[1]);
-  R(10, 27, 92, 4, P.ink); R(11, 28, Math.round(90 * bar), 2, bar > 0.7 ? P.red : P.gold);
-  if (wpm > 8000) bangText('ON FIRE!', 56, 50, t, 23.9, 0.8, 2, P.gold, 9);
-
-  // zoom into the monitor
-  const z = easeInCubic(seg(t, e.zoomIn, 25.6));
-  CAM.x = lerp(W / 2, sx + sw / 2, z);
-  CAM.y = lerp(H / 2, sy + sh / 2, z);
-  CAM.zoom = lerp(1.02, 5, z);
-}
-
-// ---------------------------------------------------------------- 5. headless camera
-function sceneCamera(t) {
-  const e = E();
-  daySky(t, [P.sky2, P.sky3, P.sky4, P.clay3]);
-  const snapping = t > e.snaps[0] - 0.1 && t < e.snaps[e.snaps.length - 1] + 0.3;
-  if (snapping) speedLines(t, 0.8, 140, 160, P.white);
-  cloudGround(GROUND + 22, 1, t);
-  // backdrop & spotlight
-  R(52, 70, 176, 148, P.ink); R(54, 72, 172, 144, P.cream);
-  for (let i = 0; i < 172; i += 12) R(54 + i, 72, 6, 144, P.sand);
-  R(54, 72, 172, 6, P.clay); R(54, 78, 172, 2, P.clay2);
-  text5('STUDIO', 140, 84, P.clay2, 1, { align: 'center' });
-  alpha(0.35, () => { for (let y = 0; y < 140; y++) R(140 - y * 0.5, 76 + y, y + 1, 1, P.gold3); });
-
-  // robot posing; each snap a new pose
-  let si = -1;
-  for (let i = 0; i < e.snaps.length; i++) if (t >= e.snaps[i]) si = i;
-  const poses = ['salute', 'cheer', 'pose1', 'point', 'pose2', 'wave', 'cheer', 'pointL', 'salute', 'pose1', 'cheer', 'pose2', 'wave', 'cheer'];
-  const faces = ['happy', 'surprise', 'happy', 'focus', 'happy', 'happy', 'surprise', 'happy', 'happy', 'focus', 'happy', 'surprise', 'happy', 'happy'];
-  const pose = si >= 0 ? poses[si % poses.length] : 'idle';
-  const face = si >= 0 ? faces[si % faces.length] : (t > e.camWalk[1] ? 'surprise' : 'normal');
-  const hop = si >= 0 ? Math.round(Math.sin(clamp((t - e.snaps[si]) / 0.18) * Math.PI) * 5) : 0;
-  robot(140, 214 - hop, { t, pose, face, flip: si % 2 === 1, scale: 1.25 });
-
-  // headless camera walks in
-  const wk = easeOutCubic(seg(t, e.camWalk[0], e.camWalk[1]));
-  const cx = Math.round(lerp(540, 330, wk)), cyb = 214;
-  const walking = t > e.camWalk[0] && t < e.camWalk[1];
-  const step = walking ? Math.round(Math.abs(Math.sin(t * 18)) * 3) : 0;
-  // legs
-  const la = walking ? Math.sin(t * 18) * 5 : 0;
-  line(cx - 12, cyb - 22, cx - 16 + la, cyb, P.ink, 3);
-  line(cx + 12, cyb - 22, cx + 16 - la, cyb, P.ink, 3);
-  R(cx - 21 + la, cyb - 2, 9, 3, P.ink); R(cx + 12 - la, cyb - 2, 9, 3, P.ink);
-  const by = cyb - 52 - step;
-  // body
-  R(cx - 29, by - 1, 66, 34, P.ink);
-  R(cx - 28, by, 64, 32, P.ink2);
-  R(cx - 28, by, 64, 3, P.ink3);
-  for (let i = 0; i < 64; i += 4) R(cx - 28 + i, by + 22, 2, 8, P.ink);
-  text5('HEADLESS', cx + 10, by + 7, P.sand2, 1, { align: 'center' });
-  // lens (pointing left at the robot)
-  disc(cx - 30, by + 18, 12, P.ink); disc(cx - 30, by + 18, 10, P.steel2); disc(cx - 30, by + 18, 7, P.ink);
-  disc(cx - 30, by + 18, 4, P.blue); px(cx - 33, by + 15, P.white); px(cx - 32, by + 15, P.white);
-  // flash unit
-  let flashOn = 0;
-  for (const s of e.snaps) { const d = t - s; if (d >= 0 && d < 0.09) flashOn = 1; }
-  R(cx - 22, by - 9, 16, 9, P.ink); R(cx - 21, by - 8, 14, 7, flashOn ? P.white : P.sand);
-  if (flashOn) { alpha(0.5, () => disc(cx - 14, by - 4, 22, P.white)); spark(cx - 14, by - 4, 14, P.gold3, t * 4, 8); }
-  // neck stump with spring and floating "?"
-  const boing = t > e.camWalk[1] ? Math.sin((t - e.camWalk[1]) * 18) * Math.exp(-(t - e.camWalk[1]) * 3) * 8 : 0;
-  const nx = cx + 12, ny = by;
-  R(nx - 4, ny - 4, 8, 4, P.ink); R(nx - 3, ny - 3, 6, 3, P.steel);
-  const top = ny - 18 - boing;
-  for (let i = 0; i < 5; i++) { const yy = lerp(ny - 4, top, i / 5); line(nx - 4, yy, nx + 4, yy - 2, P.steel3, 1); }
-  disc(nx, top, 2, P.steel3);
-  if (t > e.camWalk[1] + 0.2) {
-    const qk = pop(t, e.camWalk[1] + 0.2, 0.3);
-    text5('?', nx + 2, top - 22 + Math.sin(t * 4) * 2, P.clay, Math.max(1, Math.round(3 * qk)), { align: 'center', outline: P.ink });
-  }
-  if (walking) for (let i = 0; i < 4; i++) burst(t, e.camWalk[0] + i * 0.28, { n: 6, x: cx + 14, y: cyb, spd: [20, 50], ang: [Math.PI * 1.1, Math.PI * 1.6], life: 0.4, size: 4, colors: [P.paper, P.sand], shape: 'disc', drag: 3, seed: 51 + i });
-
-  // ejected photos fly to the stack
-  const stackX = 420, stackBase = 214;
-  let stacked = 0;
-  e.snaps.forEach((s, i) => {
-    const d = t - s;
-    if (d < 0) return;
-    const fly = clamp(d / 0.45);
-    if (fly >= 1) { stacked++; return; }
-    const x = lerp(cx - 2, stackX, easeOutCubic(fly));
-    const y = lerp(by - 8, stackBase - 14 - stacked * 3, fly) - Math.sin(fly * Math.PI) * 50;
-    g.save(); g.translate(Math.round(x), Math.round(y)); g.rotate((1 - fly) * 6);
-    photo(-7, -5, 14, 11, i); g.restore();
-  });
-  for (let i = 0; i < stacked; i++) photo(stackX - 7 + ((i * 3) % 4) - 2, stackBase - 12 - i * 3, 14, 11, i);
-  if (stacked > 0) { R(stackX - 12, stackBase, 24, 3, P.ink); }
-
-  // frame counter
-  const fc = Math.floor(1710 * easeInQuad(seg(t, e.snaps[0], e.snaps[e.snaps.length - 1] + 0.3)));
-  R(352, 10, 118, 15, P.ink); R(353, 11, 116, 13, P.ink2);
-  disc(361, 17, 3, Math.floor(t * 4) % 2 ? P.red : P.red2);
-  text5('FRAME ' + String(fc).padStart(4, '0'), 368, 14, P.paper, 1);
-  e.snaps.forEach((s, i) => { if (i % 3 === 0) bangText(['SNAP!', 'CLICK!', 'SNAP!', 'CHEESE!', 'SNAP!'][i / 3], 250 + (i % 2) * 30, 60 + (i % 3) * 14, t, s, 0.4, 2, P.paper, i); });
-  CAM.zoom = 1.02 + (snapping ? 0.03 * Math.sin(t * 25) * 0 + 0.04 : 0);
-}
-
-// ---------------------------------------------------------------- 6. ffmpeg press
-function sceneFFmpeg(t) {
-  const e = E();
-  daySky(t, [P.sky2, P.sky3, P.sky4, P.clay3]);
-  cloudGround(GROUND + 22, 1, t);
-  // ram position
-  let ramK = 0;
-  e.presses.forEach(p => {
-    const d = t - p;
-    if (d > -0.08 && d < 0) ramK = Math.max(ramK, easeInCubic((d + 0.08) / 0.08));
-    else if (d >= 0 && d < 0.12) ramK = 1;
-    else if (d >= 0.12 && d < 0.55) ramK = Math.max(ramK, 1 - easeOutCubic((d - 0.12) / 0.43));
-  });
-  const pressCount = e.presses.filter(p => t >= p).length;
-  // conveyor
-  const belt = 194;
-  R(10, belt, 184, 10, P.ink); R(11, belt + 1, 182, 8, P.ink3);
-  for (let i = 0; i < 12; i++) { const rx = 18 + i * 15; disc(rx, belt + 5, 3, P.steel2); px(rx + Math.round(Math.cos(t * 12 + i) * 2), belt + 5 + Math.round(Math.sin(t * 12 + i) * 2), P.steel3); }
-  for (let x = 12 + ((t * 40) % 8); x < 192; x += 8) R(x, belt + 1, 3, 1, P.grey);
-  // press frame
-  const fx0 = 186, fx1 = 296;
-  R(fx0 - 1, 52, 14, 152, P.ink); R(fx0, 53, 12, 150, P.steel2); R(fx0 + 2, 53, 3, 150, P.steel3);
-  R(fx1 - 1, 52, 14, 152, P.ink); R(fx1, 53, 12, 150, P.steel2); R(fx1 + 2, 53, 3, 150, P.steel3);
-  for (let y = 62; y < 200; y += 16) { px(fx0 + 8, y, P.ink); px(fx1 + 8, y, P.ink); }
-  R(fx0 - 10, 38, fx1 - fx0 + 32, 22, P.ink); R(fx0 - 9, 39, fx1 - fx0 + 30, 20, P.steel);
-  R(fx0 - 9, 39, fx1 - fx0 + 30, 3, P.steel3);
-  // sign
-  R(214, 25, 64, 17, P.ink); R(215, 26, 62, 15, P.clay);
-  text5('FFMPEG', 246, 30, P.paper, 1, { align: 'center', shadow: P.clay4 });
-  if (Math.floor(t * 4) % 2) { disc(208, 33, 3, P.gold); disc(284, 33, 3, P.gold); } else { disc(208, 33, 3, P.clay4); disc(284, 33, 3, P.clay4); }
-  // piston & ram
-  const ramTop = Math.round(lerp(70, 146, ramK));
-  R(234, 59, 24, ramTop - 59, P.ink); R(236, 59, 20, ramTop - 59, P.steel3); R(240, 59, 4, ramTop - 59, P.white);
-  R(198, ramTop - 1, 98, 28, P.ink); R(199, ramTop, 96, 26, P.ink2); R(199, ramTop, 96, 4, P.ink3);
-  for (let i = 0; i < 96; i += 10) R(199 + i, ramTop + 20, 5, 6, P.gold2);
-  // gauge
-  disc(178, 110, 9, P.ink); disc(178, 110, 7, P.paper);
-  const ga = -2.4 + ramK * 3.6 + Math.sin(t * 30) * 0.05;
-  line(178, 110, 178 + Math.cos(ga) * 6, 110 + Math.sin(ga) * 6, P.red, 1);
-  // anvil
-  R(196, 186, 100, 10, P.ink); R(197, 187, 98, 8, P.steel2);
-  // stack of frames travelling, then being compressed
-  const travel = easeInOut(seg(t, e.conveyor, e.presses[0] - 0.25));
-  const stackH = [34, 20, 10, 4][pressCount];
-  if (t < e.reelOut) {
-    const sx = lerp(40, 246, travel);
-    const sy = (travel < 1 ? belt : 186);
-    const h = Math.min(stackH, travel < 1 ? 34 : Math.max(stackH, (ramTop + 26 < sy ? sy - ramTop - 26 : stackH)));
-    const layers = Math.max(2, Math.floor(h / 3));
-    for (let i = 0; i < layers; i++) {
-      const lh = h / layers;
-      R(sx - 15 + ((i * 5) % 3) - 1, sy - (i + 1) * lh, 30, Math.max(1, lh), P.ink);
-      R(sx - 14 + ((i * 5) % 3) - 1, sy - (i + 1) * lh + (lh > 2 ? 1 : 0), 28, Math.max(1, lh - 1), [P.paper, P.sky3, P.teal3, P.clay3][i % 4]);
-    }
-  }
-  // impacts
-  e.presses.forEach((p, i) => {
-    burst(t, p, { n: 36, x: 246, y: 184, jx: 90, spd: [100, 260], ang: [Math.PI * 1.05, Math.PI * 1.95], grav: 500, life: 0.6, size: 2, colors: [P.gold, P.gold3, P.white, P.clay3], seed: 61 + i });
-    burst(t, p, { n: 14, x: 246, y: 60, jx: 120, spd: [20, 60], ang: [Math.PI * 1.2, Math.PI * 1.8], life: 1.0, size: 7, colors: [P.white, P.cream], shape: 'disc', drag: 1.5, seed: 64 + i });
-    const d = t - p;
-    if (d > 0 && d < 0.08) alpha(0.7, () => disc(246, 184, 40, P.gold3));
-    bangText(['BANG!', 'CLANG!', 'BOOM!'][i], i === 1 ? 110 : 380, 110 - i * 10, t, p, 0.55, 3, P.gold, 10 + i);
-  });
-  // robot on the lever
-  const rx = 380, ry = 216;
-  let lever = 0;
-  e.presses.forEach(p => { const d = t - p; if (d > -0.25 && d < 0.3) lever = Math.max(lever, 1 - Math.abs(d + 0.05) / 0.25); });
-  R(398, 180, 30, 40, P.ink); R(399, 181, 28, 38, P.steel2); R(401, 183, 10, 5, P.red); R(414, 183, 10, 5, P.green);
-  const la = -1.2 + lever * 1.4;
-  line(406, 198, 406 + Math.cos(la) * 26, 198 + Math.sin(la) * 26, P.ink, 3);
-  disc(406 + Math.cos(la) * 26, 198 + Math.sin(la) * 26, 4, P.red);
-  const happy = t > e.reelOut;
-  robot(rx, ry, { t, pose: happy ? 'cheer' : 'lever', lever, face: happy ? 'happy' : lever > 0.5 ? 'strain' : 'focus', scale: 1.1 });
-
-  // reel pops out and gets audio
-  if (t > e.reelOut) {
-    const k = easeOutBack(seg(t, e.reelOut, e.reelOut + 0.5));
-    const cx = 246, cy = lerp(176, 128, k);
-    const r = Math.round(lerp(6, 24, k));
-    const zap = t > e.audioZap;
-    filmReel(cx, cy, r, t * 5, zap ? 1 : 0.4);
-    // film strip tail
-    for (let i = 0; i < 8; i++) {
-      const fx = cx + r + i * 7, fy = cy + Math.sin(t * 6 + i) * 3 + i * 2;
-      R(fx, fy - 4, 7, 9, P.ink); R(fx + 1, fy - 3, 5, 7, [P.sky3, P.clay3, P.teal3][i % 3]);
-    }
-    text5('MP4', cx, cy + r + 6, P.paper, 2, { align: 'center', outline: P.ink });
-    burst(t, e.reelOut, { n: 30, x: cx, y: cy, spd: [60, 180], life: 0.9, size: 3, colors: CONFETTI, shape: 'star', drag: 2, seed: 70 });
-    // audio waveform zap
-    const zk = seg(t, e.audioZap - 0.35, e.audioZap);
-    if (zk > 0 && zk < 1) {
-      let lx = -10, ly = 40;
-      for (let i = 0; i <= 40; i++) {
-        const f = (i / 40) * zk;
-        const x = lerp(-10, cx, f), y = lerp(40, cy, f) + Math.sin(f * 40) * 10 * (1 - f);
-        line(lx, ly, x, y, P.teal, 3); line(lx, ly, x, y, P.teal3, 1);
-        lx = x; ly = y;
-      }
-    }
-    if (zap) {
-      const d = t - e.audioZap;
-      for (let i = 0; i < 3; i++) { const rr = r + 4 + ((d * 40 + i * 8) % 24); ring(cx, cy, rr, 1, i % 2 ? P.teal : P.teal3); }
-      burst(t, e.audioZap, { n: 26, x: cx, y: cy, spd: [80, 200], life: 0.7, size: 3, colors: [P.teal, P.teal3, P.white], shape: 'star', drag: 2, seed: 71 });
-      if (d < 1.2) text5('+ AUDIO', cx - 60, cy - 46, P.teal3, 2, { align: 'center', outline: P.ink });
-    }
-  }
-  CAM.zoom = 1.03;
-}
-
-// ---------------------------------------------------------------- 7. git push rocket
-function rocketDraw(x, y, t, fire, loaded) {
-  // x,y = bottom center of rocket body
-  x = Math.round(x); y = Math.round(y);
-  // flames
-  if (fire > 0) {
-    const fl = 14 + fire * 26 + Math.sin(t * 50) * 4;
-    for (let i = 0; i < 3; i++) {
-      const w = [12, 8, 4][i], c = [P.clay, P.gold, P.white][i];
-      for (let yy = 0; yy < fl * (1 - i * 0.25); yy++) {
-        const ww = Math.max(1, Math.round(w * (1 - yy / (fl * (1 - i * 0.25))) + Math.sin(t * 60 + yy) * 1.2));
-        R(x - ww, y + yy, ww * 2, 1, c);
-      }
-    }
-  }
-  // fins
-  for (const s of [-1, 1]) {
-    for (let i = 0; i < 16; i++) R(x + s * 13 + (s < 0 ? -i * 0.7 - 1 : 0), y - 18 + i, Math.ceil(i * 0.7) + 1, 1, P.ink);
-    for (let i = 1; i < 15; i++) R(x + s * 13 + (s < 0 ? -i * 0.7 + 0 : 0), y - 17 + i, Math.max(1, Math.ceil(i * 0.7) - 1), 1, P.clay);
-  }
-  // body
-  R(x - 14, y - 70, 28, 70, P.ink);
-  R(x - 13, y - 69, 26, 68, P.paper);
-  R(x + 6, y - 69, 7, 68, P.sand);
-  R(x - 13, y - 6, 26, 5, P.clay2);
-  // nose cone
-  for (let i = 0; i < 22; i++) {
-    const w = Math.round(14 * Math.sqrt(i / 22));
-    R(x - w - 1, y - 92 + i, w * 2 + 2, 1, P.ink);
-    if (w > 0) R(x - w, y - 92 + i, w * 2, 1, i < 4 ? P.clay3 : P.clay);
-  }
-  // porthole
-  disc(x, y - 52, 7, P.ink); disc(x, y - 52, 6, P.steel3); disc(x, y - 52, 4, loaded ? P.ink2 : P.night2);
-  if (loaded) { disc(x, y - 52, 3, P.steel2); px(x, y - 52, P.clay); alpha(0.4 + 0.3 * Math.sin(t * 8), () => disc(x, y - 52, 4, P.teal3)); }
-  // vertical PUSH label
-  'PUSH'.split('').forEach((c, i) => text5(c, x - 2, y - 40 + i * 8, P.clay2, 1));
-}
-
-function scenePush(t) {
-  const e = E();
-  // rocket world position: y measured in world px, launch at liftoff
-  const fly = Math.max(0, t - e.liftoff);
-  const rise = 40 * fly * fly * fly + 30 * fly * fly; // accelerating
-  const padY = 206;
-  const rocketY = padY - rise;
-  const camY = Math.max(0, rise - 70); // camera follows once rocket climbs
-  // sky: day -> deep -> space as we climb
-  const up = clamp(camY / 900);
-  daySky(t);
-  alpha(easeInOut(clamp(up * 1.6)), () => ditherGradient(-MARGIN, H + MARGIN, [P.night1, P.night3, P.dusk2, P.dusk3]));
-  alpha(clamp(up * 2 - 0.6), () => nightSky(t, 1));
-  // passing clouds (parallax)
-  for (let i = 0; i < 10; i++) {
-    const cy = -200 - i * 160 + camY * 1.1;
-    if (cy < -60 || cy > H + 60) continue;
-    cloudBlob(60 + rnd(i * 5) * 360, cy, 70 + rnd(i) * 60, 22, P.white, P.sand, null, i);
-  }
-  g.save(); g.translate(0, Math.round(camY));
-  cloudGround(GROUND + 22, 1, t);
-  // launch tower
-  R(250, 96, 6, 112, P.ink); R(274, 96, 6, 112, P.ink);
-  for (let y = 100; y < 206; y += 12) { line(256, y, 274, y + 12, P.steel2, 1); line(274, y, 256, y + 12, P.steel2, 1); }
-  R(244, 92, 42, 5, P.ink);
-  // pad
-  R(278, padY, 64, 8, P.ink); R(279, padY + 1, 62, 6, P.steel2);
-  // console + robot
-  const pressK = t > e.ignite - 0.1 && t < e.ignite + 0.4 ? Math.sin(clamp((t - e.ignite + 0.1) / 0.5) * Math.PI) : 0;
-  R(150, 196, 40, 30, P.ink); R(151, 197, 38, 28, P.steel2);
-  R(156, 201, 28, 6, P.ink2); R(157, 202, Math.round(26 * seg(t, 39.3, 41.3)), 4, P.green);
-  disc(170, 196 - 2 + Math.round(pressK * 2), 7, P.ink); disc(170, 195 + Math.round(pressK * 2), 6, P.red); disc(168, 193 + Math.round(pressK * 2), 2, P.pink);
-  const loading = t < e.reelLoad + 0.35;
-  let pose = loading ? 'throw' : t > e.ignite - 0.3 && t < e.ignite + 0.6 ? 'press' : t > e.liftoff ? 'cheer' : 'idle';
-  let face = t > e.liftoff ? 'happy' : t > e.countdown[0] ? 'focus' : 'happy';
-  robot(140, 216, { t, pose, press: pressK, face, look: 1, scale: 1.1, sy: 1 - pressK * 0.1, sx: 1 + pressK * 0.08 });
-  // reel thrown into porthole
-  const lk = seg(t, e.reelLoad - 0.05, e.reelLoad + 0.35);
-  if (lk > 0 && lk < 1) {
-    const rx = lerp(158, 310, lk), ry = lerp(190, padY - 52, lk) - Math.sin(lk * Math.PI) * 60;
-    filmReel(rx, ry, 7, t * 20, 0.5);
-  }
-  g.restore();
-  // smoke billows on the pad
-  if (t > e.ignite) {
-    stream(t, e.ignite, 45.6, 28, 2.2, (age, bt, j) => {
-      const side = j % 2 ? 1 : -1;
-      const x0 = 310, y0 = padY + 6 + camY;
-      const sp = 40 + rnd(j) * 90;
-      const x = x0 + side * sp * (1 - Math.exp(-age * 2)) / 2 * 2.2;
-      const y = y0 - rnd(j + 1) * 10 - age * 8;
-      smokePuff(x, y, 5 + age * 9, j % 3 ? P.white : P.cream, clamp(1.2 - age / 2.2));
-    });
-  }
-  // exhaust trail in world space (scrolls down with camera)
-  if (fly > 0) {
-    stream(t, e.liftoff, 45.6, 40, 1.6, (age, bt, j) => {
-      const f = bt - e.liftoff;
-      const ry = padY - (40 * f * f * f + 30 * f * f);
-      const x = 310 + (rnd(j) - 0.5) * (4 + age * 30);
-      const y = ry + 14 + camY + age * 20;
-      smokePuff(x, y, 3 + age * 6, age < 0.15 ? P.gold3 : P.white, clamp(1 - age / 1.6));
-    });
-  }
-  const shakeX = t > e.ignite && t < e.liftoff + 0.4 ? Math.round((rnd(Math.floor(t * 60)) - 0.5) * 2) : 0;
-  const fire = t < e.ignite ? 0 : t < e.liftoff ? 0.4 + 0.2 * Math.sin(t * 40) : 1;
-  rocketDraw(310 + shakeX, rocketY + camY, t, fire, t > e.reelLoad + 0.35);
-  if (fly > 0.4) vSpeedLines(t, clamp((fly - 0.4) / 1.2) * 0.8, P.white);
-
-  // countdown digits
-  e.countdown.forEach((c, i) => {
-    const d = t - c;
-    if (d < 0 || d > 0.75) return;
-    const k = pop(t, c, 0.25);
-    const s = Math.max(1, Math.round(8 * k));
-    alpha(1 - seg(d, 0.55, 0.75), () => {
-      ring(240, 74, 18 + d * 80, 2, P.gold);
-      text5(String(3 - i), 240, 74 - (7 * s) / 2, P.paper, s, { align: 'center', outline: P.clay2 });
-    });
-  });
-  bangText('GIT PUSH!', 150, 120, t, e.ignite, 0.8, 2, P.paper, 20);
-  if (fly > 0) bangText('LIFTOFF!', 120, 60, t, e.liftoff, 1.0, 3, P.gold, 21);
-  // destination repo cloud arrives from above
-  if (t > 44.2) {
-    const k = easeOutCubic(seg(t, 44.2, e.rocketHit));
-    const cy = lerp(-60, 40, k);
-    cloudBlob(310, cy, 150, 44, P.steel3, P.steel, P.ink, 3);
-    R(274, cy - 14, 72, 15, P.ink); R(275, cy - 13, 70, 13, P.ink2);
-    text5('ORIGIN', 310, cy - 10, P.paper, 1, { align: 'center' });
-  }
-  CAM.zoom = 1.03 + (t > e.ignite && t < e.liftoff ? 0.03 * seg(t, e.ignite, e.liftoff) : 0);
-}
-
-// ---------------------------------------------------------------- 8. finale
-function sceneEnd(t) {
-  const e = E();
-  const back = 49.6; // back to the container at dusk
-  if (t < back) {
-    ditherGradient(-MARGIN, H + MARGIN, [P.night2, P.dusk1, P.dusk2, P.dusk3, P.dusk4]);
-    for (let i = 0; i < 40; i++) { const tw = Math.sin(t * 3 + i * 2); if (tw > 0) px(rnd(i) * W, rnd(i + 50) * 150, tw > 0.8 ? P.white : P.sand2); }
-    // big spark
-    const k = easeOutElastic(seg(t, e.bigBurst, e.bigBurst + 1.0));
-    const cx = 240, cy = 104;
-    const d = t - e.bigBurst;
-    for (let i = 0; i < 3; i++) { const rr = d * (140 + i * 60); if (rr < 400) ring(cx, cy, rr, 3 - i, [P.gold3, P.gold, P.clay3][i]); }
-    alpha(0.3, () => disc(cx, cy, 54 * k, P.clay3));
-    spark(cx, cy, 46 * k, P.clay, t * 0.6, 12);
-    spark(cx, cy, 20 * k, P.gold3, -t * 0.9, 8);
-    // fireworks
-    const fw = [[45.9, 90, 64], [46.5, 390, 54], [47.1, 150, 40], [47.7, 330, 84], [48.3, 240, 30], [48.8, 70, 100], [49.2, 420, 110]];
-    fw.forEach(([ft, fx, fy], i) => {
-      const rise = seg(t, ft - 0.4, ft);
-      if (rise > 0 && rise < 1) { R(fx, lerp(270, fy, easeOutCubic(rise)), 2, 6, P.gold3); }
-      burst(t, ft, { n: 46, x: fx, y: fy, spd: [50, 130], life: 1.3, size: 3, colors: [CONFETTI[i % 8], CONFETTI[(i + 3) % 8], P.white], shape: 'star', drag: 1.6, grav: 50, seed: 80 + i });
-    });
-    // confetti rain
-    stream(t, 45.7, back, 50, 3, (age, bt, j) => {
-      const x = rnd(j) * (W + 40) - 20 + Math.sin(age * 5 + j) * 8;
-      const y = -10 + age * (60 + rnd(j + 1) * 50);
-      const w = Math.sin(age * 10 + j) > 0 ? 3 : 1;
-      R(x, y, w, 3, CONFETTI[j % 8]);
-    });
-    // title letters drop in
-    const title = 'MADE IN THE CLOUD!';
-    const s = 3, tw = textW(title, s);
-    for (let i = 0; i < title.length; i++) {
-      const lt = e.title + i * 0.05;
-      if (t < lt) continue;
-      const dk = easeOutBounce(seg(t, lt, lt + 0.5));
-      const y = lerp(-30, 186, dk) + Math.sin(t * 5 + i * 0.6) * 3 * seg(t, lt + 0.5, lt + 0.8);
-      const x = 240 - tw / 2 + i * 6 * s;
-      text5(title[i], x, y, i % 2 ? P.gold : P.paper, s, { outline: P.ink });
+    container(CX - 380, GY - 320, 760, 320, { t, open, lamps: [1, 1, 1], textT0: -1 });
+    burst(t, E.doorOpen + 0.1, { n: 40, x: CX, y: 420, jx: 120, spd: [60, 260], ang: [Math.PI * 1.2, Math.PI * 1.8], life: 1.1, size: 12, colors: [C.CR], seed: 21 });
+    burst(t, E.eyesOn + 0.3, { n: 24, x: CX, y: 640, spd: [200, 500], life: 0.6, size: 5, colors: [C.RED, C.CR], shape: 'line', seed: 22 });
+    if (!inside) {
+      const y = lerp(640, 820, hop) - Math.sin(hop * Math.PI) * 170;
+      const r = lerp(40, 86, cubicOut(hop));
+      let sx = 1, sy = 1;
+      if (hop < 1) { sy = 1.2; sx = 0.85; }
+      else { const w = wobble(t - E.hopLand, 2.5, 6); sy = 1 - 0.35 * w; sx = 1 + 0.3 * w; }
+      hero(CX, y + (hop >= 1 ? r * (1 - sy) : 0), r, { t, sx, sy, face: t > E.hopLand + 0.1 ? 'happy' : 'normal' });
+      burst(t, E.hopLand, { n: 40, x: CX, y: 900, jx: 160, spd: [150, 500], ang: [Math.PI * 1.05, Math.PI * 1.95], grav: 700, life: 0.7, size: 9, colors: [C.CR, C.RED], shape: 'sq', seed: 23 });
     }
     return;
   }
-  // dusk at the container, robot says bye, lights go off
-  const dark = e.lightsOff.filter(x => t >= x).length;
-  ditherGradient(-MARGIN, 220, [P.dusk1, P.dusk2, P.dusk3, P.dusk4]);
-  R(-MARGIN, 220, W + 2 * MARGIN, 60, P.dusk4);
-  for (let i = 0; i < 30; i++) { const tw = Math.sin(t * 3 + i * 2); if (tw > 0.3) px(rnd(i) * W, rnd(i + 50) * 120, P.white); }
-  cloudGround(GROUND, 1, t, P.clay3, P.dusk3, P.ink);
-  const lamps = [dark > 0 ? 0 : 1, dark > 1 ? 0 : 1, dark > 2 ? 0 : 1];
-  const goIn = seg(t, 53.8, 54.2);
-  const doorClose = seg(t, 54.25, 54.5);
-  const inside = goIn >= 1;
-  const glow = inside ? clamp(1 - seg(t, e.antennaFade, e.antennaFade + 0.6)) : 0;
-  const rface = t > e.lightsOff[0] ? 'sleepy' : 'happy';
-  const rpose = t > e.wave && t < e.lightsOff[0] ? 'wave' : t > e.lightsOff[0] && t < 53.6 ? 'yawn' : 'idle';
-  container(240, GROUND, {
-    open: 1 - easeOutBounce(doorClose), lamps, windowGlow: glow,
-    interior: (dx, dy, dw, dh) => { if (inside && doorClose < 1) robot(240, dy + dh - 1, { t, face: 'sleepy', shadow: false }); },
+  // ---- the request, full red
+  bg(C.RED);
+  if (t < E.salute) typed('NEW TASK · FROM: USER', 150, 230, t, E.bubbleIn + 0.05, 40, lab(C.INK, 20));
+  const out = E.salute - 0.5;
+  ktext('帮我做个', 150, 470, { fam: 'zh', w: 900, size: 200, color: C.INK, t, t0: E.bubbleIn + 0.12, stagger: 0.06, out, outDur: 0.25, track: 0 });
+  ktext('像素风视频！', 150, 700, { fam: 'zh', w: 900, size: 200, color: C.INK, t, t0: E.bubbleIn + 0.32, stagger: 0.06, out: out + 0.05, outDur: 0.25, track: 0 });
+  ktext('make me a pixel video, please.', 158, 800, { fam: 'serif', w: 400, size: 56, color: C.INK, t, t0: E.bubbleIn + 0.9, stagger: 0.012, dur: 0.5, track: 0, out: out + 0.1, outDur: 0.25 });
+  // hero reacting
+  const ex = t - E.exclaim;
+  let hx = 1580, hy = 600 + Math.sin(t * 3) * 6, hr = 80, face = 'normal', look = -1, sx = 1, sy = 1;
+  if (ex > 0) { face = 'surprise'; look = 0; hy -= Math.sin(clamp(ex / 0.4) * Math.PI) * 90; const w = wobble(ex - 0.4, 2.5, 6); if (ex > 0.4) { sy = 1 - 0.3 * w; sx = 1 + 0.25 * w; } }
+  const sal = t - E.salute;
+  // OK.
+  if (sal > -0.02) {
+    const ok = ktext('OK', 300, 800, { fam: 'disp', w: 900, size: 600, color: C.INK, t, t0: E.salute, stagger: 0.07, dur: 0.5, track: -0.05 });
+    const px = ok.x0 + ok.w + 70, py = 800 - 52;
+    const k = expoOut(seg(t, E.salute + 0.05, E.salute + 0.5));
+    hx = lerp(1580, px, k); hy = lerp(hy, py, k); hr = lerp(80, 56, k);
+    face = 'happy'; look = 0;
+    const w = wobble(t - E.salute - 0.5, 2.5, 6); sx = 1 + 0.3 * w; sy = 1 - 0.3 * w;
+    for (let i = 0; i < 10; i++) {
+      const d = t - E.salute - 0.45;
+      if (d < 0 || d > 0.5) continue;
+      const a = (i / 10) * Math.PI * 2, r0 = 80 + d * 300, r1 = r0 + 50 * (1 - d / 0.5);
+      lineS(px + Math.cos(a) * r0, py + Math.sin(a) * r0, px + Math.cos(a) * r1, py + Math.sin(a) * r1, C.INK, 5);
+    }
+    typed('ACCEPTED · 1 TASK QUEUED', 150, 230 + 0, t, E.salute + 0.6, 40, lab(C.INK, 20));
+  }
+  if (ex > 0 && sal < 0) {
+    const k = spring(ex, 2.6, 6);
+    push(() => { c.translate(1580, 400); c.scale(k, k); text('!', 0, 0, { fam: 'disp', w: 900, size: 300, color: C.INK, align: 'center' }); });
+  }
+  hero(hx, hy, hr, { t, color: C.INK, eye: C.RED, face, look, sx, sy });
+}
+
+// ---------------------------------------------------------------- 3. GIT CLONE
+const G = { cols: 10, rows: 6, cell: 40, sq: 26, x: 1300, y: 380 };
+const BIG = { cols: 30, rows: 8, cell: 40, sq: 26, x: 560, y: 340 };
+function sClone(t) {
+  bg(C.CR);
+  // wipe in (cream panel sweeps over the red)
+  if (t < 13.5) { bg(C.RED); rect(OW * (1 - expoOut(seg(t, 13.2, 13.5))), 0, OW, OH, C.CR); }
+  // heading
+  const head = ktext('Step one,', 150, 250, { fam: 'serif', w: 400, size: 100, color: C.INK, t, t0: 13.3, stagger: 0.02, track: 0 });
+  const h1 = ktext('GIT CLONE', 150 + 380, 250, { fam: 'disp', w: 900, size: 116, color: C.INK, t, t0: 13.42, out: 17.7, track: -0.045 });
+  const h2 = ktext('ACQUIRED', 150 + 380, 250, { fam: 'disp', w: 900, size: 116, color: C.INK, t, t0: 17.85, track: -0.045 });
+  const dotx = t > 17.8 ? 530 + h2.w + 26 : 530 + h1.w + 26;
+  if (t > 13.7) circle(dotx, 238, 13 * clamp(spring(t - 13.7, 3, 7), 0, 1.3), C.RED);
+  // ground
+  const gk = expoOut(seg(t, 13.3, 13.9));
+  lineS(150, 780, 150 + 1620 * gk, 780, C.INK, 2);
+  // hero pulls
+  let pulled = 0, strain = 0;
+  E.tugs.forEach(tg => { pulled += clamp(spring(t - tg, 2.2, 7), 0, 1.2); if (t > tg && t < tg + 0.5) strain = 1; });
+  const flown = t > E.cratePop;
+  let hx = 560 - 26 * pulled, hy = 734, sx = 1, sy = 1, face = strain ? 'strain' : 'normal';
+  E.tugs.forEach(tg => { const w = wobble(t - tg, 2.6, 7); sx += 0.28 * w; sy -= 0.28 * w; });
+  if (flown) { const w = wobble(t - E.cratePop, 2.2, 5); sx = 1 + 0.3 * w; sy = 1 - 0.3 * w; face = 'surprise'; }
+  if (t > E.crateBurst) { face = 'happy'; hy -= Math.abs(Math.sin((t - E.crateBurst) * 9)) * 40 * Math.exp(-(t - E.crateBurst) * 1.2); }
+  // remote grid offset (ripples column by column on each tug)
+  const gridShift = col => {
+    let s = 0;
+    E.tugs.forEach(tg => { s += 60 * clamp(spring(t - tg - col * 0.025, 2.4, 7), 0, 1.3); });
+    return s;
+  };
+  // dashed remote box
+  if (!flown || t < E.cratePop + 0.6) withAlpha(1 - seg(t, E.cratePop, E.cratePop + 0.4), () => {
+    c.setLineDash([8, 8]); c.strokeStyle = 'rgba(17,17,17,0.45)'; c.lineWidth = 1.5;
+    c.strokeRect(G.x - 30, G.y - 30, G.cols * G.cell + 40, G.rows * G.cell + 40); c.setLineDash([]);
+    text('origin / feizon · remote', G.x - 30, G.y - 46, lab(C.INK, 16));
   });
-  burst(t, 54.5, { n: 12, x: 240, y: GROUND - 2, jx: 40, spd: [20, 50], ang: [Math.PI * 1.1, Math.PI * 1.9], life: 0.35, size: 3, colors: [P.sand, P.white], shape: 'disc', drag: 3, seed: 91 });
-  if (!inside) {
-    const y = lerp(216, GROUND - 1, goIn) - Math.sin(goIn * Math.PI) * 24;
-    robot(240, y, { t, pose: rpose, face: rface, scale: lerp(1.15, 0.95, goIn) });
-    if (t > e.wave && t < e.lightsOff[0]) {
-      const k = pop(t, e.wave, 0.3);
-      text5('BYE~', 296, 160 + Math.sin(t * 6) * 2, P.paper, Math.max(1, Math.round(3 * k)), { align: 'center', outline: P.clay2 });
-      stream(t, e.wave, e.lightsOff[0], 4, 1.5, (age, bt, j) => {
-        const x = 270 + rnd(j) * 40 + Math.sin(age * 4) * 4, y = 190 - age * 40;
-        const c = P.pink;
-        R(x, y, 2, 2, c); R(x + 3, y, 2, 2, c); R(x - 1, y + 1, 7, 2, c); R(x, y + 3, 5, 1, c); R(x + 1, y + 4, 3, 1, c); R(x + 2, y + 5, 1, 1, c);
+  // rope
+  if (t > E.pipeDown && !flown) {
+    const tip = expoOut(seg(t, E.pipeDown, E.pipeClank));
+    const gx = G.x - gridShift(0), gy = G.y + G.rows * G.cell / 2;
+    const x0 = hx + 46 * sx, y0 = hy;
+    const x1 = lerp(x0, gx - 10, tip), y1 = lerp(y0, gy, tip);
+    const sag = (1 - strain * 0.9) * 40 * tip + wobble(t - E.pipeClank, 4, 5) * 30;
+    c.strokeStyle = C.INK; c.lineWidth = 3; c.beginPath(); c.moveTo(x0, y0);
+    c.quadraticCurveTo((x0 + x1) / 2, (y0 + y1) / 2 + sag, x1, y1); c.stroke();
+    circle(x1, y1, 7, C.RED);
+  }
+  // squares
+  const n = G.cols * G.rows;
+  for (let i = 0; i < n; i++) {
+    const col = i % G.cols, row = Math.floor(i / G.cols);
+    let x = G.x + col * G.cell - gridShift(col), y = G.y + row * G.cell, rot = 0;
+    if (flown) {
+      const tx = BIG.x + (col + 10) * BIG.cell, ty = BIG.y + (row + 1) * BIG.cell;
+      const k = expoInOut(clamp((t - E.cratePop - (col + row) * 0.018) / 0.55));
+      const ax = lerp(x, tx, k), ay = lerp(y, ty, k) - Math.sin(k * Math.PI) * 220;
+      rot = (1 - k) * k * 4 * (rnd(i) - 0.5) * 3;
+      x = ax; y = ay;
+    }
+    const red = rnd(i * 3) < 0.14;
+    push(() => { c.translate(x + G.sq / 2, y + G.sq / 2); c.rotate(rot); rect(-G.sq / 2, -G.sq / 2, G.sq, G.sq, red ? C.RED : C.INK); });
+  }
+  // unpacked file grid
+  if (t > E.crateBurst) {
+    const d = t - E.crateBurst;
+    for (let row = 0; row < BIG.rows; row++) for (let col = 0; col < BIG.cols; col++) {
+      if (col >= 10 && col < 20 && row >= 1 && row < 7) continue;
+      const dist = Math.hypot(col - 14.5, (row - 3.5) * 1.6);
+      const k = clamp(spring(d - dist * 0.025, 2.4, 6), 0, 1.25);
+      if (k <= 0) continue;
+      const s = BIG.sq * k;
+      const wave = Math.sin(col * 0.5 - d * 9 + row * 0.3);
+      const red = wave > 0.93 || rnd(col * 31 + row) < 0.06;
+      const x = BIG.x + col * BIG.cell + BIG.sq / 2, y = BIG.y + row * BIG.cell + BIG.sq / 2;
+      rect(x - s / 2, y - s / 2, s, s, red ? C.RED : C.INK);
+    }
+    burst(t, E.crateBurst, { n: 50, x: BIG.x + 15 * BIG.cell, y: BIG.y + 4 * BIG.cell, spd: [300, 1100], life: 0.8, size: 12, colors: [C.RED, C.INK], shape: 'line', seed: 37 });
+    const files = 1248 * expoOut(seg(t, E.crateBurst, E.crateBurst + 1.2));
+    text('FILES', 1330, 750, lab(C.GREY, 16));
+    odometer(Math.floor(files), 4, 1410, 752, { size: 46, color: C.INK });
+    text('32.4 MB · 214 COMMITS', 1770, 750, { ...lab(C.GREY, 16), align: 'right' });
+  }
+  // tug labels
+  E.tugs.forEach((tg, i) => {
+    const d = t - tg;
+    if (d < 0 || d > 0.6) return;
+    withAlpha(1 - seg(d, 0.4, 0.6), () => text(`TUG 0${i + 1}/03`, hx - 50, hy - 90 - d * 60, lab(C.INK, 18)));
+  });
+  hero(hx, hy, 46, { t, sx, sy, face, look: flown ? 1 : 0.5 });
+  // black ball transition into the code scene (grows from the hero)
+  if (t > 18.95) circle(hx, hy, 2400 * expoIn(seg(t, 18.95, 19.4)), C.K);
+}
+
+// ---------------------------------------------------------------- 4. CODE
+function sCode(t) {
+  bg(C.K);
+  const t0 = E.typing[0], phaseB = t > E.miniRobot;
+  const outK = expoIn(seg(t, E.miniRobot, E.miniRobot + 0.35));
+  if (!phaseB || outK < 1) push(() => {
+    c.translate(0, -outK * 900);
+    // editor
+    c.save(); c.beginPath(); c.rect(140, 170, 940, 660); c.clip();
+    const dt = Math.max(0, t - t0 + 0.4);
+    const scroll = 40 * dt + 70 * Math.pow(dt, 2.6);
+    const rowH = 34, first = Math.floor(scroll / rowH);
+    const cols = [C.CR, C.RED, C.GREY, 'rgba(236,231,221,0.4)'];
+    for (let i = first - 2; i < first + 22; i++) {
+      if (i < 0) continue;
+      const y = 830 - (scroll - i * rowH) * -1 - (first + 20) * rowH + scroll * 0 ;
+      const yy = 170 + i * rowH - scroll + 300;
+      if (yy < 150 || yy > 850) continue;
+      text(String(i + 1).padStart(3, '0'), 150, yy + 11, lab('rgba(236,231,221,0.3)', 15));
+      let x = 230 + Math.floor(rnd(i * 3) * 4) * 36;
+      const parts = 1 + Math.floor(rnd(i * 7) * 4);
+      for (let p = 0; p < parts; p++) {
+        const w = 40 + Math.floor(rnd(i * 11 + p) * 200);
+        if (x + w > 1070) break;
+        rrect(x, yy, w, 12, 6, cols[Math.floor(rnd(i * 5 + p) * cols.length)]);
+        x += w + 16;
+      }
+    }
+    c.restore();
+    lineS(140, 170, 140, 830, C.DIMK, 1.5);
+    // WPM odometer + meter
+    const v = lerp(60, 9999, cubicIn(seg(t, t0, E.typing[1])));
+    text('WPM', 1240, 300, lab(C.GREY, 18));
+    odometer(Math.floor(v), 4, 1232, 540, { size: 250, color: C.CR });
+    const segs = 16, on = Math.round((v / 9999) * segs);
+    for (let i = 0; i < segs; i++) rect(1240 + i * 32, 590, 24, 12, i < on ? C.RED : 'rgba(236,231,221,0.15)');
+    text(v > 8000 ? 'wpm ' + Math.floor(v) + ' · OVERHEAT' : 'wpm ' + Math.floor(v), 1240, 640, lab(v > 8000 ? C.RED : C.GREY, 16));
+    // keyboard
+    for (let r = 0; r < 3; r++) for (let k = 0; k < 13; k++) {
+      const hot = t > t0 && t < E.typing[1] && rnd(k * 13 + r * 7 + Math.floor(t * 26) * 3) > 0.82;
+      const x = 1240 + k * 40 + r * 10, y = 700 + r * 30 + (hot ? 3 : 0);
+      rrect(x, y, 32, 22, 4, hot ? C.RED : 'rgba(236,231,221,0.85)');
+    }
+    // hero typing
+    const b = t > t0 && t < E.typing[1] ? Math.abs(Math.sin(t * 22)) * 12 : 0;
+    hero(1160, 740 - b, 34, { t, look: 1, lookY: 0.6, face: t > E.sparks[4] ? 'strain' : 'normal' });
+    stream(t, E.sparks[4], 25.6, 8, 1.2, (age, bt, j) => withAlpha(0.6 * (1 - age / 1.2), () => circle(1150 + rnd(j) * 30 + age * 20, 690 - age * 120, 6 + age * 14, C.CR)));
+    E.sparks.forEach((st, i) => burst(t, st, { n: 30, x: 1240 + rnd(i * 5) * 500, y: 700, spd: [400, 1100], ang: [Math.PI * 1.05, Math.PI * 1.95], grav: 1800, life: 0.5, size: 10, colors: [C.RED, C.CR, '#ffd29a'], shape: 'line', seed: 42 + i }));
+  });
+  // ---- phase B: frame inside frame inside frame (droste), then zoom through
+  if (phaseB) {
+    const s = 0.42, w0 = 1000, h0 = 562, fx = CX, fy = 560;
+    const zk = expoIn(seg(t, E.zoomIn, 25.6));
+    const Z = Math.pow(1 / s, 3 * zk);
+    for (let k = 0; k < 9; k++) {
+      const pk = clamp(spring(t - E.miniRobot - 0.1 - k * 0.09, 2.2, 6), 0, 1.15);
+      if (pk <= 0) continue;
+      const sc = Z * Math.pow(s, k) * pk;
+      const w = w0 * sc, h = h0 * sc;
+      if (w > 12000 || w < 4) continue;
+      c.strokeStyle = k % 2 ? C.RED : C.CR; c.lineWidth = Math.max(1, 3 * Math.min(1, sc * 2));
+      c.strokeRect(fx - w / 2, fy - h / 2, w, h);
+      if (sc > 0.08) {
+        const hy = fy + h * 0.28, hxx = fx - w * 0.3;
+        hero(hxx, hy - Math.abs(Math.sin(t * 6 + k)) * 30 * sc, 70 * sc, { t: t + k * 0.3, face: 'happy', rot: Math.sin(t * 7 + k) * 0.25 });
+        if (sc > 0.2) text(`FRAME ${String(k).padStart(2, '0')}`, fx - w / 2 + 16 * sc, fy - h / 2 + 34 * sc, lab(k % 2 ? C.RED : C.CR, 20 * sc));
+      }
+    }
+    ktext('Every frame, drawn in code.', CX, 200, { fam: 'serif', w: 400, size: 66, color: C.CR, t, t0: 23.0, stagger: 0.014, align: 'center', track: 0, out: E.zoomIn - 0.1 });
+  }
+}
+
+// ---------------------------------------------------------------- 5. HEADLESS
+const SNAPPOS = [[620, 560], [820, 500], [520, 620], [760, 640], [900, 560], [600, 480], [700, 560], [860, 620], [540, 540], [780, 470], [650, 650], [880, 520], [720, 600], [740, 540]];
+const SNAPFACE = ['happy', 'surprise', 'normal', 'happy', 'strain', 'happy', 'surprise', 'happy', 'normal', 'happy', 'surprise', 'happy', 'sleepy', 'happy'];
+function sCamera(t) {
+  bg(C.CR);
+  const chop = 27.3;
+  // ---- part 1: the literal gag
+  if (t < 28.25) push(() => {
+    const exitK = expoIn(seg(t, 28.0, 28.25));
+    c.translate(0, -exitK * 900);
+    typed('(e) HEADLESS BROWSER · CHROMIUM', 300, 330, t, 25.75, 50, lab(C.INK, 20));
+    const size = 300, word = 'HEADLESS', base = 640;
+    setFont('disp', size, 900);
+    const ws = [...word].map(ch => c.measureText(ch).width - 0.045 * size);
+    const total = ws.reduce((a, b) => a + b, 0);
+    const headW = ws.slice(0, 4).reduce((a, b) => a + b, 0);
+    let x = CX - total / 2;
+    const slide = expoOut(seg(t, chop + 0.15, chop + 0.6)) * (headW / 2 + 40);
+    for (let i = 0; i < word.length; i++) {
+      const k = clamp((t - 25.7 - i * 0.04) / 0.55);
+      if (k > 0) {
+        let dx = 0, dy = (1 - expoOut(k)) * size * 1.05, rot = 0;
+        const fall = t - chop - i * 0.03;
+        if (i < 4 && fall > 0) { dy += 0.5 * 4200 * fall * fall - 300 * fall; dx = (rnd(i) - 0.3) * 500 * fall; rot = (rnd(i + 3) - 0.5) * 7 * fall; }
+        if (i >= 4) dx = -slide;
+        c.save();
+        if (fall <= 0 || i >= 4) { c.beginPath(); c.rect(x - 40 + dx, base - size * 0.86, ws[i] + 80, size * 1.2); c.clip(); }
+        c.translate(x + dx + ws[i] / 2, base + dy - size * 0.35); c.rotate(rot);
+        c.fillStyle = C.INK; c.fillText(word[i], -ws[i] / 2, size * 0.35);
+        c.restore();
+      }
+      x += ws[i];
+    }
+    // the slice
+    const sk = seg(t, chop - 0.12, chop + 0.02);
+    if (sk > 0 && t < chop + 0.4) withAlpha(1 - seg(t, chop + 0.1, chop + 0.4), () => rect(0, base - size * 0.35 - 3, OW * expoOut(sk), 6, C.RED));
+    burst(t, chop, { n: 30, x: CX - total / 2 + headW, y: base - 100, spd: [300, 900], life: 0.5, size: 10, colors: [C.RED, C.INK], shape: 'line', seed: 51 });
+    if (t > chop + 0.45) {
+      const q = clamp(spring(t - chop - 0.45, 2.4, 6), 0, 1.3);
+      const qx = CX - total / 2 + total - slide + 50;
+      push(() => { c.translate(qx + 90, base - 110 + Math.sin(t * 5) * 10); c.scale(q, q); text('?', 0, 110, { fam: 'disp', w: 900, size: 300, color: C.RED, align: 'center' }); });
+    }
+  });
+  // ---- part 2: viewfinder + contact sheet
+  if (t > 28.0) {
+    const k = expoOut(seg(t, 28.0, 28.35));
+    const vx = 200, vy = 230, vw = 1100, vh = 620;
+    withAlpha(k, () => {
+      c.strokeStyle = C.INK; c.lineWidth = 3; const L = 46;
+      for (const [x, y, sx, sy] of [[vx, vy, 1, 1], [vx + vw, vy, -1, 1], [vx, vy + vh, 1, -1], [vx + vw, vy + vh, -1, -1]]) {
+        c.beginPath(); c.moveTo(x, y + sy * L); c.lineTo(x, y); c.lineTo(x + sx * L, y); c.stroke();
+      }
+      lineS(vx + vw / 2 - 18, vy + vh / 2, vx + vw / 2 + 18, vy + vh / 2, C.DIMC, 2);
+      lineS(vx + vw / 2, vy + vh / 2 - 18, vx + vw / 2, vy + vh / 2 + 18, C.DIMC, 2);
+      if (Math.floor(t * 2) % 2 === 0) circle(vx + 40, vy + 44, 9, C.RED);
+      text('REC · 1080P60 · HEADLESS', vx + 60, vy + 51, lab(C.INK, 16));
+      text('FRAMES', vx + vw - 300, vy + 51, lab(C.GREY, 16));
+      const fc = 1710 * clamp(Math.pow(seg(t, E.snaps[0], E.snaps[E.snaps.length - 1] + 0.35), 1.6));
+      odometer(Math.floor(fc), 4, vx + vw - 210, vy + 62, { size: 54, color: C.INK });
+    });
+    // hero poses
+    let si = -1;
+    E.snaps.forEach((s, i) => { if (t >= s) si = i; });
+    const prev = si > 0 ? SNAPPOS[si - 1] : [700, 560], cur = si >= 0 ? SNAPPOS[si] : [700, 560];
+    const mk = si >= 0 ? expoOut(seg(t, E.snaps[si], E.snaps[si] + 0.12)) : 1;
+    const hx = lerp(prev[0], cur[0], mk), hy = lerp(prev[1], cur[1], mk);
+    const w = si >= 0 ? wobble(t - E.snaps[si], 3, 7) : 0;
+    if (t > 28.15) hero(hx, hy, 90 * clamp(spring(t - 28.15, 2.4, 6), 0, 1.2), { t, face: si >= 0 ? SNAPFACE[si] : 'normal', sx: 1 + 0.3 * w, sy: 1 - 0.3 * w, rot: si >= 0 ? (rnd(si) - 0.5) * 0.5 : 0 });
+    // contact sheet
+    const slot = i => [1400 + (i % 2) * 190, 230 + Math.floor(i / 2) * 90];
+    for (let i = 0; i < E.snaps.length; i++) {
+      const d = t - E.snaps[i];
+      if (d < 0) { const [sx_, sy_] = slot(i); c.strokeStyle = 'rgba(17,17,17,0.18)'; c.lineWidth = 1.5; c.strokeRect(sx_, sy_, 170, 76); continue; }
+      const f = expoOut(clamp(d / 0.4));
+      const [sx_, sy_] = slot(i);
+      const x = lerp(vx, sx_, f), y = lerp(vy, sy_, f), w2 = lerp(vw, 170, f), h2 = lerp(vh, 76, f);
+      push(() => {
+        c.translate(x + w2 / 2, y + h2 / 2); c.rotate((1 - f) * (rnd(i) - 0.5) * 0.6);
+        withAlpha(lerp(0.25, 1, f), () => { rect(-w2 / 2, -h2 / 2, w2, h2, C.INK); });
+        const p = SNAPPOS[i];
+        hero(((p[0] - vx) / vw - 0.5) * w2, ((p[1] - vy) / vh - 0.5) * h2, 90 * w2 / vw, { t, face: SNAPFACE[i], eye: C.CR });
       });
     }
   }
-  // zzz from window
-  if (inside) stream(t, 54.6, 57, 2.5, 2, (age, bt, j) => {
-    text5('Z', 250 + age * 16 + Math.sin(age * 4) * 3, 140 - age * 30, P.paper, 1 + (j % 2), {});
+  // camera flash (invert)
+  E.snaps.forEach(s => { const d = t - s; if (d >= 0 && d < 0.1) withAlpha(0.55 * (1 - d / 0.1), () => bg(C.INK)); });
+}
+
+// ---------------------------------------------------------------- 6. FFMPEG
+function sFF(t) {
+  bg(C.RED);
+  if (t < 32.7) { bg(C.CR); rect(0, 0, OW * expoOut(seg(t, 32.4, 32.7)), OH, C.RED); }
+  typed('(f) ENCODE · H.264 · 60 FPS', 150, 230, t, 32.55, 40, lab(C.INK, 20));
+  lineS(150, 780, 1770, 780, C.INK, 2);
+  // ram
+  let ram = 0;
+  E.presses.forEach(p => {
+    const d = t - p;
+    if (d > -0.09 && d < 0) ram = Math.max(ram, expoIn((d + 0.09) / 0.09));
+    else if (d >= 0 && d < 0.12) ram = 1;
+    else if (d >= 0.12 && d < 0.6) ram = Math.max(ram, 1 - cubicOut((d - 0.12) / 0.48));
   });
-  // darkness steps
-  alpha(dark * 0.16, () => R(-MARGIN, -MARGIN, W + 2 * MARGIN, H + 2 * MARGIN, P.night1));
-  // end card
-  if (t > e.endCard) {
-    const k = seg(t, e.endCard, e.endCard + 0.4);
-    alpha(k, () => {
-      R(-MARGIN, -MARGIN, W + 2 * MARGIN, H + 2 * MARGIN, P.night1);
-      spark(240, 92, 22 + Math.sin(t * 4) * 2, P.clay, t * 0.5, 12);
-      text5('MADE IN THE CLOUD', 240, 132, P.paper, 2, { align: 'center' });
-      text5('WITH CLAUDE CODE', 240, 154, P.clay3, 2, { align: 'center' });
-      text5('FFMPEG + HEADLESS CHROMIUM + GEMINI TTS', 240, 186, P.ink3, 1, { align: 'center' });
+  const nPress = E.presses.filter(p => t >= p - 0.02).length;
+  const Hs = [330, 220, 130, 46];
+  const Hc = lerp(Hs[Math.max(0, nPress - 1)], Hs[nPress], nPress ? expoOut(seg(t, E.presses[nPress - 1] - 0.02, E.presses[nPress - 1] + 0.05)) : 0);
+  const reel = t > E.reelOut;
+  // stack of frames on the belt
+  const sx = lerp(-300, CX, expoOut(seg(t, E.conveyor, E.presses[0] - 0.3)));
+  if (!reel) {
+    const n = 14, ch = Math.max(6, Hc * 0.42), gap = (Hc - ch) / (n - 1);
+    for (let i = 0; i < n; i++) {
+      const y = 780 - ch - i * gap, x = sx - 180 + (i % 2 ? 8 : -8) * (Hc / 330);
+      rect(x - 2, y - 2, 364, ch + 4, C.INK);
+      rect(x, y, 360, ch, i % 3 === 0 ? C.CR : '#f6d9cf');
+    }
+    for (let i = 0; i < 16; i++) { const x = ((i * 120 + t * 400) % 1680) + 150; rect(x, 790, 40, 4, 'rgba(17,17,17,0.35)'); }
+  }
+  // slab
+  const slabUp = expoIn(seg(t, E.reelOut - 0.2, E.reelOut + 0.2));
+  const slabBottom = lerp(320, 780 - Hc, ram) - slabUp * 600;
+  rect(CX - 400, slabBottom - 200, 800, 200, C.INK);
+  rect(CX - 400, slabBottom - 200, 800, 6, C.CR);
+  text('FFMPEG', CX, slabBottom - 52, { fam: 'disp', w: 900, size: 130, color: C.RED, align: 'center', track: -0.03 });
+  lineS(CX, slabBottom - 200, CX, -50, C.INK, 18);
+  E.presses.forEach((p, i) => {
+    burst(t, p, { n: 50, x: CX, y: 780, jx: 360, spd: [300, 1100], ang: [Math.PI * 1.05, Math.PI * 1.95], grav: 2200, life: 0.6, size: 12, colors: [C.CR, C.INK, '#ffd29a'], shape: 'line', seed: 61 + i });
+    burst(t, p, { n: 24, x: CX, y: 770, jx: 700, spd: [60, 200], ang: [Math.PI * 1.1, Math.PI * 1.9], life: 1.0, size: 26, colors: [C.CR], seed: 64 + i });
+    const word = ['BANG.', 'CLANG.', 'BOOM.'][i], left = i !== 1;
+    ktext(word, left ? 150 : 1770, 640, {
+      fam: 'disp', w: 900, size: 210, color: C.INK, t, t0: p, stagger: 0.03, dur: 0.35, out: p + 0.5, outDur: 0.3, align: left ? 'left' : 'right',
+      dy: (j, tt) => -Math.abs(Math.sin((tt - p) * 14 + j * 0.9)) * 40 * Math.exp(-(tt - p) * 4), mask: false, track: -0.05,
+    });
+  });
+  // reel
+  if (reel) {
+    const k = expoOut(seg(t, E.reelOut, E.reelOut + 0.5));
+    const cy = lerp(780 - 23, 520, k), w = lerp(360, 260, k), h = lerp(46, 260, k), rr = lerp(4, 130, k);
+    const zap = t > E.audioZap;
+    if (zap) for (let i = 0; i < 4; i++) { const r0 = 140 + ((t - E.audioZap) * 260 + i * 60) % 240; withAlpha(1 - (r0 - 140) / 240, () => ringS(CX, cy, r0, C.CR, 3)); }
+    push(() => {
+      c.translate(CX, cy); c.rotate(k * 1.5 + Math.max(0, t - E.reelOut - 0.5) * 2.4);
+      rrect(-w / 2, -h / 2, w, h, rr, C.INK);
+      if (k > 0.6) withAlpha(seg(k, 0.6, 1), () => {
+        for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; circle(Math.cos(a) * 72, Math.sin(a) * 72, 30, C.RED); }
+        circle(0, 0, 18, C.CR);
+      });
+    });
+    text('MP4 · H.264 · 57.000 s', CX, cy + 190, { ...lab(C.INK, 20), align: 'center' });
+    burst(t, E.reelOut, { n: 40, x: CX, y: 640, spd: [300, 900], life: 0.7, size: 12, colors: [C.CR, C.INK], shape: 'line', seed: 70 });
+    // waveform zips into the reel
+    const zk = seg(t, E.audioZap - 0.4, E.audioZap);
+    if (zk > 0) {
+      const fade = 1 - seg(t, E.audioZap + 0.2, E.audioZap + 0.6);
+      withAlpha(fade, () => {
+        c.strokeStyle = C.CR; c.lineWidth = 4; c.beginPath();
+        const x1 = lerp(0, CX - 130, expoOut(zk));
+        for (let x = 0; x <= x1; x += 6) {
+          const f = x / (CX - 130);
+          const y = cy + Math.sin(x * 0.045 - t * 30) * 90 * (1 - f) * (0.6 + 0.4 * Math.sin(x * 0.011));
+          x === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+        }
+        c.stroke();
+      });
+    }
+    if (zap) typed('+ AUDIO · AAC 48 kHz', CX - 140, cy - 200, t, E.audioZap + 0.05, 50, lab(C.INK, 20));
+  }
+}
+
+// ---------------------------------------------------------------- 7. GIT PUSH
+function sPush(t) {
+  const cd = E.countdown;
+  if (t < cd[0]) {
+    bg(C.K);
+    typed('$ git push origin main', CX - 300, CY, t, 38.85, 40, lab(C.CR, 36));
+    hero(CX, 820, 40, { t, look: 0, lookY: -1 });
+    return;
+  }
+  if (t < E.ignite) {
+    const idx = cd.filter(x => t >= x).length - 1;
+    const scheme = [[C.K, C.CR], [C.CR, C.INK], [C.RED, C.INK]];
+    if (idx > 0) bg(scheme[idx - 1][0]); else bg(C.K);
+    const wk = expoOut(seg(t, cd[idx], cd[idx] + 0.16));
+    rect(0, 0, OW * wk, OH, scheme[idx][0]);
+    if (idx > 0 && wk < 1) {
+      // old digit exiting
+      push(() => { c.beginPath(); c.rect(OW * wk, 0, OW, OH); c.clip(); text(String(3 - idx + 1), CX, 810, { fam: 'disp', w: 900, size: 820, color: scheme[idx - 1][1], align: 'center' }); });
+    }
+    const d = t - cd[idx];
+    const sc = 1 + 0.25 * (1 - expoOut(clamp(d / 0.4))) + 0.03 * d;
+    push(() => {
+      c.beginPath(); c.rect(0, 0, OW * wk, OH); c.clip();
+      c.translate(CX, CY); c.scale(sc, sc); c.translate(-CX, -CY);
+      text(String(3 - idx), CX, 810, { fam: 'disp', w: 900, size: 820, color: scheme[idx][1], align: 'center' });
+    });
+    text('T-MINUS', 150, 230, lab(scheme[idx][1], 20));
+    text(`00:00:0${3 - idx}`, 150, 262, lab(scheme[idx][1], 20));
+    return;
+  }
+  bg(C.K);
+  const fly = Math.max(0, t - E.liftoff);
+  const heroWorldY = 820 - (420 * fly * fly * fly + 260 * fly * fly);
+  const cam = Math.max(0, (820 - heroWorldY) - 360);
+  // speed lines
+  const sp = clamp(fly / 1.2);
+  for (let i = 0; i < 40; i++) {
+    if (rnd(i * 7) > sp) continue;
+    const x = rnd(i * 13) * OW, len = 80 + rnd(i * 3) * 300 * sp;
+    const y = ((t * (1800 + rnd(i) * 1600) + rnd(i * 5) * 3000) % (OH + len * 2)) - len;
+    rect(x, y, 2, len, 'rgba(236,231,221,0.35)');
+  }
+  // terminal (world space)
+  push(() => {
+    c.translate(0, cam);
+    const lines = ['$ git push origin main', 'Enumerating objects: 1248, done.', 'Writing objects: 100% (1248/1248), 32.4 MiB', 'To github.com:feizon/cloud-shift.git', '   main -> main'];
+    lines.forEach((l, i) => typed(l, CX - 430, 300 + i * 44, t, E.ignite + 0.05 + i * 0.16, 70, lab(i === 0 ? C.CR : C.GREY, 26)));
+    lineS(CX - 600, 880, CX + 600, 880, C.DIMK, 1.5);
+  });
+  // sphere = origin
+  const form = seg(t, 43.8, 44.9), ex = expoOut(seg(t, E.rocketHit, E.rocketHit + 1.2));
+  if (form > 0) {
+    sphere(CX, 330, { R: 240, rotY: t * 0.9, rotX: 0.35, form, explode: ex, ring: form * (1 - ex) * 0.9 });
+    withAlpha(form * (1 - ex), () => {
+      ['PARTICLES  2,400', 'STATE      ORIGIN', 'REMOTE     github'].forEach((s, i) => text(s, 1380, 260 + i * 30, lab(i === 1 ? C.RED : C.MUTE, 16)));
+    });
+  }
+  // hero rocket
+  let hy = heroWorldY + cam, hx = CX;
+  if (t > 44.4) hy = lerp(hy, 330, expoIn(seg(t, 44.4, E.rocketHit)));
+  if (t < E.liftoff) hx += (rnd(Math.floor(t * 60)) - 0.5) * 8 * seg(t, E.ignite, E.liftoff);
+  if (t < E.rocketHit) {
+    // flame
+    stream(t, E.ignite, E.rocketHit, 140, 0.5, (age, bt, j) => {
+      const by = (bt < E.liftoff ? 820 : 820 - (420 * Math.pow(bt - E.liftoff, 3) + 260 * Math.pow(bt - E.liftoff, 2))) + cam;
+      const x = hx + (rnd(j) - 0.5) * (20 + age * 160), y = by + 40 + age * (500 + rnd(j + 1) * 400);
+      withAlpha(1 - age / 0.5, () => circle(x, y, (1 - age / 0.5) * 12 + 2, rnd(j + 2) < 0.6 ? C.RED : C.CR));
+    });
+    if (fly > 0) withAlpha(0.6, () => rect(hx - 4, hy, 8, Math.min(900, 120 + fly * 500), C.RED));
+    const st = fly > 0 ? 1 + Math.min(0.6, fly * 0.5) : 1;
+    hero(hx, hy, 40, { t, sx: 1 / Math.sqrt(st), sy: st, face: fly > 0 ? 'happy' : 'strain', lookY: -1 });
+  }
+}
+
+// ---------------------------------------------------------------- 8. SIGNATURE / CLOCK OUT
+function sEnd(t) {
+  if (t < 49.6) {
+    bg(C.K);
+    const ex = expoOut(seg(t, E.rocketHit, E.rocketHit + 1.6)) + (t - E.rocketHit) * 0.05;
+    sphere(CX, 330, { R: 240, rotY: t * 0.5, rotX: 0.35, form: 1, explode: ex, alpha: lerp(1, 0.35, seg(t, 45.6, 47)) });
+    const fw = [[45.9, 300, 260], [46.5, 1600, 220], [47.1, 520, 160], [47.7, 1450, 380], [48.3, 960, 140], [48.8, 260, 420], [49.2, 1700, 520]];
+    fw.forEach(([ft, x, y], i) => burst(t, ft, { n: 60, x, y, spd: [200, 700], life: 1.2, size: 10, grav: 300, colors: [C.RED, C.CR], shape: 'line', seed: 80 + i }));
+    const x0 = 300;
+    const s1 = ktext('Made in the cloud', x0, 480, { fam: 'serif', w: 400, size: 160, color: C.CR, t, t0: E.title, stagger: 0.025, track: -0.01 });
+    if (t > E.title + 0.55) hero(x0 + s1.w + 46, 456, 24 * clamp(spring(t - E.title - 0.55, 2.6, 6), 0, 1.3), { t, face: 'happy', eye: C.K });
+    ktext('CLAUDE CODE', x0, 630, { fam: 'disp', w: 900, size: 130, color: C.CR, t, t0: E.title + 0.25, stagger: 0.03, track: -0.04 });
+    const rk = expoOut(seg(t, E.title + 0.6, E.title + 1.2));
+    lineS(x0, 680, x0 + 1320 * rk, 680, 'rgba(236,231,221,0.3)', 1.5);
+    if (t > E.title + 0.9) {
+      text('SHORT FILM 2026', x0, 724, lab(C.CR, 16));
+      text('CODE · RENDER · VOICE · MIX', x0 + 660, 724, { ...lab(C.CR, 16), align: 'center' });
+      typed('EVERY FRAME, IN THE CLOUD.', x0 + 1320 - 330, 724, t, E.title + 1.0, 40, lab(C.RED, 16));
+    }
+    const stats = [['FILM', '57.000 s'], ['SCENES', '08'], ['FRAMES', '3,420'], ['VOICE', 'GEMINI TTS'], ['BUGS', '00']];
+    stats.forEach(([k, v], i) => {
+      const tt0 = E.title + 0.4 + i * 0.12;
+      if (t < tt0) return;
+      const col = i === 4 ? C.RED : C.MUTE;
+      withAlpha(seg(t, tt0, tt0 + 0.2), () => {
+        text(k, 1310, 190 + i * 28, lab(col, 15));
+        text('.'.repeat(12), 1400, 190 + i * 28, lab('rgba(236,231,221,0.3)', 15));
+        text(v, 1620, 190 + i * 28, { ...lab(col, 15), align: 'right' });
+      });
+    });
+    return;
+  }
+  // ---- clock out
+  bg(C.K);
+  const dark = E.lightsOff.filter(x => t >= x).length;
+  lineS(CX - 860, GY, CX + 860, GY, C.RED, 3);
+  const goIn = seg(t, 53.8, 54.2), close = expoInOut(seg(t, 54.25, 54.5));
+  const lamps = [dark > 0 ? 0 : 1, dark > 1 ? 0 : 1, dark > 2 ? 0 : 1];
+  const inside = goIn >= 1;
+  if (inside && close < 1) hero(CX, 640, 40, { t, face: 'sleepy' });
+  container(CX - 380, GY - 320, 760, 320, { t, open: 1 - close, lamps, textT0: -1 });
+  if (close >= 1) withAlpha(1 - seg(t, E.antennaFade, E.antennaFade + 0.6), () => circle(CX, 560, 8, C.RED));
+  burst(t, 54.5, { n: 30, x: CX, y: GY, jx: 700, spd: [60, 260], ang: [Math.PI * 1.1, Math.PI * 1.9], grav: 500, life: 0.6, size: 7, colors: [C.CR], shape: 'sq', seed: 91 });
+  if (!inside) {
+    const waving = t > E.wave && t < E.lightsOff[0];
+    const y = lerp(820, 640, goIn) - Math.sin(goIn * Math.PI) * 120 - (waving ? Math.abs(Math.sin((t - E.wave) * 7)) * 30 : 0);
+    const r = lerp(76, 40, goIn);
+    hero(CX, y, r, { t, face: t > E.lightsOff[0] ? 'sleepy' : 'happy', rot: waving ? Math.sin((t - E.wave) * 7) * 0.2 : 0 });
+    ktext('bye~', CX + 120, 800, { fam: 'serif', w: 400, size: 96, color: C.CR, t, t0: E.wave + 0.05, stagger: 0.05, track: 0, out: E.lightsOff[0] - 0.1 });
+  }
+  if (inside) stream(t, 54.6, 57, 1.6, 2.2, (age, bt, j) => withAlpha(1 - age / 2.2, () => text('z', CX + 40 + age * 60, 330 - age * 80, { fam: 'serif', size: 40 + (j % 2) * 20, color: C.CR })));
+  withAlpha(dark * 0.16, () => bg('#000'));
+  if (t > E.endCard) {
+    const k = seg(t, E.endCard, E.endCard + 0.4);
+    withAlpha(k, () => {
+      bg(C.K);
+      const shrink = 1 - expoIn(seg(t, 56.2, 56.8));
+      ringS(CX, CY, 290 * expoOut(seg(t, E.endCard, E.endCard + 1)) * shrink, 'rgba(255,61,31,0.45)', 1.5);
+      hero(CX, CY, 22 * shrink, { t, face: 'sleepy', eye: C.K });
+      text('(z) END', CX + 60, CY - 44, lab(C.CR));
+      text('CLAUDE CODE / CLOUD SHIFT', CX, CY + 380, { ...lab(C.GREY, 16), align: 'center' });
     });
   }
 }
 
-const SCENE_FN = { boot: sceneBoot, wake: sceneWake, clone: sceneClone, code: sceneCode, camera: sceneCamera, ffmpeg: sceneFFmpeg, push: scenePush, end: sceneEnd };
-Object.assign(window, { SCENE_FN, resetCam, getCam: () => CAM });
+const SCENE_FN = { boot: sBoot, wake: sWake, clone: sClone, code: sCode, camera: sCamera, ffmpeg: sFF, push: sPush, end: sEnd };
+
+// Foreground colour scheme for HUD/subtitles at time t.
+function themeAt(t) {
+  if (t < E.bubbleIn) return 'dark';
+  if (t < 13.35) return 'red';
+  if (t < 19.25) return 'light';
+  if (t < 25.62) return 'dark';
+  if (t < 32.55) return 'light';
+  if (t < 38.8) return 'red';
+  const cd = E.countdown;
+  if (t < cd[1]) return 'dark';
+  if (t < cd[2]) return 'light';
+  if (t < E.ignite) return 'red';
+  return 'dark';
+}
+Object.assign(window, { SCENE_FN, themeAt });

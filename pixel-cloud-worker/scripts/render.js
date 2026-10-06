@@ -16,7 +16,7 @@ const tl = JSON.parse(fs.readFileSync(path.join(root, 'timeline.json')));
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   await page.goto('file://' + path.join(root, 'src', 'index.html'));
-  await page.evaluate(() => window.renderReady);
+  console.log(await page.evaluate(() => window.renderReady));
   if (errors.length) { console.error(errors); process.exit(1); }
   const grab = async t => {
     const url = await page.evaluate(t => { window.renderFrame(t); return document.getElementById('c').toDataURL('image/png'); }, t);
@@ -32,7 +32,7 @@ const tl = JSON.parse(fs.readFileSync(path.join(root, 'timeline.json')));
     const out = path.join(root, 'out', args.out || 'video.mp4');
     fs.mkdirSync(path.dirname(out), { recursive: true });
     const ff = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(fps), '-i', '-',
-      '-c:v', 'libx264', '-preset', 'medium', '-crf', '16', '-pix_fmt', 'yuv420p', '-tune', 'animation', out], { stdio: ['pipe', 'inherit', 'inherit'] });
+      '-c:v', 'libx264', '-preset', 'medium', '-crf', '17', '-pix_fmt', 'yuv420p', out], { stdio: ['pipe', 'inherit', 'inherit'] });
     const t0 = Date.now();
     for (let f = from; f < to; f++) {
       const buf = await grab(f / fps);

@@ -144,6 +144,7 @@ at(EV["cratePop"] - 0.35, s_sweep(100, 500, 0.35, square, 0.12), 1, 0.5)
 at(EV["cratePop"], s_pop(400, 0.15), 1.0, 0.4); at(EV["cratePop"] + 0.45, s_thud(0.4), 1.0, 0.3)
 at(EV["crateBurst"], s_boom(0.6, 200, 60, 0.6), 0.8); at(EV["crateBurst"], s_crackle(1.0, 80), 0.5)
 at(EV["crateBurst"] + 0.3, s_chime_up((79, 84, 88, 91, 96), 0.05), 0.9)
+at(18.95, s_whoosh(0.45, 80, 2500, True), 0.8); at(19.4, s_boom(0.6, 90, 40, 0.5), 0.8)
 # 4 code
 t = EV["typing"][0]
 while t < EV["typing"][1]:
@@ -155,9 +156,13 @@ at(EV["sparks"][4], s_hiss(1.2, 0.35), 1.0, -0.2)
 at(EV["zoomIn"] - 0.1, s_whoosh(0.8, 300, 8000, True), 1.0)
 at(25.55, s_sweep(800, 3000, 0.25, sine, 0.25))
 # 5 camera
-for i in range(5): at(EV["camWalk"][0] + i * 0.24, s_step(), 0.8, 0.6 - i * 0.1)
-at(EV["camWalk"][1], s_boing(300, 0.6), 0.8, 0.3)
-at(EV["camWalk"][1] + 0.2, s_pop(1200), 0.6, 0.3)
+# HEADLESS letters rise, then the HEAD gets sliced off and drops
+at(25.65, s_whoosh(0.45, 400, 6000, True), 0.6)
+for i in range(8): at(25.7 + i * 0.04 + 0.12, s_click(2200 + i * 150, 0.015), 0.5, -0.5 + i * 0.14)
+at(27.18, s_sweep(1800, 7000, 0.14, sine, 0.15), 1.0); at(27.3, s_whoosh(0.25, 3000, 12000, None), 0.9)
+at(27.3, s_click(5000, 0.02), 1.0)
+for i in range(4): at(27.62 + i * 0.07, s_thud(0.25), 0.7, -0.4 + i * 0.1)
+at(27.75, s_boing(320, 0.5), 0.7, 0.4); at(27.75, s_pop(1100), 0.6, 0.4)
 for i, s in enumerate(EV["snaps"]):
     at(s, s_shutter(), 1.0, 0.25); at(s + 0.02, s_sweep(2000, 5000, 0.12, sine, 0.06), 1.0, 0.25)
     at(s + 0.05, s_whoosh(0.3, 2000, 9000, None), 0.18, 0.6)
