@@ -1,0 +1,42 @@
+[
+ {
+  "id": "s1",
+  "zh": "叮！云端某处，一个容器开机啦！",
+  "en": "Ding! Somewhere in the cloud, a container boots up!"
+ },
+ {
+  "id": "s2",
+  "zh": "新任务：做个像素风视频？包在我身上！",
+  "en": "New task: a pixel-art video? Leave it to me!"
+ },
+ {
+  "id": "s3",
+  "zh": "第一步，git clone！嘿～咻！仓库到手！",
+  "en": "Step one: git clone! Heave-ho! Repo acquired!"
+ },
+ {
+  "id": "s4",
+  "zh": "噼里啪啦写代码，每一帧都是我画的！",
+  "en": "Clack-clack-clack! Every frame, drawn in code!"
+ },
+ {
+  "id": "s5",
+  "zh": "无头浏览器，真的没有头！咔咔咔，逐帧拍照！",
+  "en": "A headless browser, literally headless! Snap, snap, snap!"
+ },
+ {
+  "id": "s6",
+  "zh": "FFmpeg，压！哐哐哐，变成视频！",
+  "en": "FFmpeg, press! Bang, bang, bang. It's a video!"
+ },
+ {
+  "id": "s7",
+  "zh": "三、二、一，git push，发射！",
+  "en": "Three, two, one. Git push, liftoff!"
+ },
+ {
+  "id": "s8",
+  "zh": "这个视频，就是这样做出来的！容器下班啦，拜拜～",
+  "en": "And that's how this video was made! Container clocking out. Bye!"
+ }
+]

@@ -1,0 +1,167 @@
+{
+ "fps": 60,
+ "duration": 57.0,
+ "scenes": [
+  {
+   "id": "boot",
+   "start": 0.0,
+   "end": 6.4
+  },
+  {
+   "id": "wake",
+   "start": 6.4,
+   "end": 13.2
+  },
+  {
+   "id": "clone",
+   "start": 13.2,
+   "end": 19.4
+  },
+  {
+   "id": "code",
+   "start": 19.4,
+   "end": 25.6
+  },
+  {
+   "id": "camera",
+   "start": 25.6,
+   "end": 32.4
+  },
+  {
+   "id": "ffmpeg",
+   "start": 32.4,
+   "end": 38.8
+  },
+  {
+   "id": "push",
+   "start": 38.8,
+   "end": 45.6
+  },
+  {
+   "id": "end",
+   "start": 45.6,
+   "end": 57.0
+  }
+ ],
+ "voice": [
+  {
+   "id": "s1",
+   "at": 1.0
+  },
+  {
+   "id": "s2",
+   "at": 7.6
+  },
+  {
+   "id": "s3",
+   "at": 13.7
+  },
+  {
+   "id": "s4",
+   "at": 19.9
+  },
+  {
+   "id": "s5",
+   "at": 26.1
+  },
+  {
+   "id": "s6",
+   "at": 32.8
+  },
+  {
+   "id": "s7",
+   "at": 39.3
+  },
+  {
+   "id": "s8",
+   "at": 46.5
+  }
+ ],
+ "events": {
+  "termType": [
+   0.2,
+   1.3
+  ],
+  "ding": 1.0,
+  "cloudForm": 1.6,
+  "containerDrop": 2.4,
+  "containerLand": 2.9,
+  "doorOpen": 6.7,
+  "eyesOn": 7.3,
+  "hop": 7.8,
+  "hopLand": 8.3,
+  "bubbleIn": 8.6,
+  "exclaim": 10.4,
+  "salute": 11.2,
+  "pipeDown": 13.4,
+  "pipeClank": 13.9,
+  "tugs": [
+   14.6,
+   15.4,
+   16.2
+  ],
+  "cratePop": 16.7,
+  "crateBurst": 17.5,
+  "typing": [
+   20.0,
+   24.6
+  ],
+  "sparks": [
+   20.6,
+   21.3,
+   21.9,
+   22.6,
+   23.2,
+   23.9
+  ],
+  "miniRobot": 22.6,
+  "zoomIn": 24.9,
+  "camWalk": [
+   25.8,
+   26.9
+  ],
+  "snaps": [
+   28.2,
+   28.45,
+   28.7,
+   28.95,
+   29.2,
+   29.45,
+   29.7,
+   29.95,
+   30.2,
+   30.45,
+   30.7,
+   30.95,
+   31.2,
+   31.45
+  ],
+  "conveyor": 33.0,
+  "presses": [
+   34.6,
+   35.3,
+   36.0
+  ],
+  "reelOut": 36.6,
+  "audioZap": 37.3,
+  "reelLoad": 38.95,
+  "countdown": [
+   39.3,
+   40.08,
+   40.68
+  ],
+  "ignite": 41.35,
+  "liftoff": 42.28,
+  "rocketHit": 45.3,
+  "bigBurst": 45.6,
+  "title": 46.6,
+  "wave": 50.0,
+  "lightsOff": [
+   52.8,
+   53.2,
+   53.6
+  ],
+  "antennaFade": 54.4,
+  "endCard": 55.0
+ }
+}

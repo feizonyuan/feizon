@@ -1,0 +1,6 @@
+out/
+src/data.js
+audio/full_take.wav
+*.key
+__pycache__/
+final/*-preview.mp4
