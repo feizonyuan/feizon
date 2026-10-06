@@ -1,8 +1,10 @@
 # Claude Code 云端打工记 · Cloud Shift
 
-一支约 57 秒的像素风 2D 动画短片，**完全用代码生成**：画面、动效、背景音乐、音效全部由程序合成，旁白由 Gemini TTS 生成。
+一支约 57 秒的编辑风动态图形短片（kinetic typography + 几何图形），**完全用代码生成**：画面、动效、背景音乐、音效全部由程序合成，旁白由 Gemini TTS 生成。
 
-成片：[`final/cloud-shift.mp4`](final/cloud-shift.mp4)（1920×1080，30fps，H.264 + AAC，中英双语字幕）
+视觉：黑 / 朱红 / 米白三色硬切，Inter Display 超粗体 + Newsreader 斜体衬线 + 思源黑体，红点主角，HUD 取景框，3D 粒子球，6× 时间超采样产生真实运动模糊。
+
+成片：[`final/cloud-shift.mp4`](final/cloud-shift.mp4)（1920×1080，60fps，H.264 + AAC，中英双语字幕）
 
 ## 分镜
 
@@ -20,7 +22,7 @@
 ## 技术管线
 
 ```
-timeline.json ──┬─> src/*.js (Canvas 480×270 像素世界 → 4× 放大 1080p)
+timeline.json ──┬─> src/*.js (Canvas 1920×1080 矢量动画，每帧 6 次子采样合成运动模糊)
                 │      └─ scripts/render.js：Playwright 无头 Chromium 逐帧截图 → ffmpeg 编码
                 ├─> scripts/audio.py：numpy 合成芯片 BGM + 40+ 种音效，按事件对齐并与人声混音/闪避
                 └─> script.json → scripts/tts_batch.py：Gemini TTS 一次生成整段旁白 → 时间戳切分 + 转写校验
@@ -38,11 +40,11 @@ GEMINI_KEY_FILE=/path/to/key python3 scripts/split_take.py
 # 2) 音频
 python3 scripts/audio.py
 # 3) 画面（可分段并行）
-node scripts/render.js --from 0 --to 1710 --out video.mp4
+node scripts/render.js --from 0 --to 3420 --out video.mp4
 # 预览某几帧
 node scripts/render.js --stills 2.9,17.6,42.5
 # 4) 合成
 bash scripts/mux.sh
 ```
 
-依赖：Node 22 + Playwright（Chromium）、Python 3 + numpy、ffmpeg，以及系统字体 WenQuanYi Zen Hei / DejaVu Sans Mono。
+依赖：Node 22 + Playwright（Chromium）、Python 3 + numpy、ffmpeg，系统字体 Inter Display；其余字体（Newsreader、JetBrains Mono、Noto Sans/Serif SC 子集）在 `src/fonts/`。
