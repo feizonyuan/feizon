@@ -2,7 +2,7 @@
 
 约 4 分钟（246 秒）的短片，**全部由代码生成**：画面用 numpy + Pillow 逐帧合成，配乐和音效用 numpy 合成。片中没有任何素材和旁白，叙事全靠字幕和声音。
 
-- 完整版：[`final/context.mp4`](final/context.mp4)，1920×1080，24fps，H.264 + AAC
+- 完整版：[`final/context.mp4`](final/context.mp4)，1920×1080，24fps，H.264 + AAC（两遍编码压到约 87MB，以符合 GitHub 的单文件上限）
 - 30 秒预告：[`final/context-teaser.mp4`](final/context-teaser.mp4)（早期版本，用的是旧字体）
 
 ## 结构
