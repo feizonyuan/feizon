@@ -33,8 +33,10 @@ for (const id of order) {
   scenes.push(s);
 }
 const tl = { fps: FPS, duration: +t.toFixed(3), scenes };
-fs.writeFileSync(path.join(root, 'timeline.json'), JSON.stringify(tl, null, 1));
-fs.writeFileSync(path.join(root, 'src', 'data.js'), `window.TL=${JSON.stringify(tl)};\n`);
+// Atomic writes: parallel render processes all rebuild these files at start-up.
+const writeAtomic = (f, s) => { const tmp = `${f}.${process.pid}.tmp`; fs.writeFileSync(tmp, s); fs.renameSync(tmp, f); };
+writeAtomic(path.join(root, 'timeline.json'), JSON.stringify(tl, null, 1));
+writeAtomic(path.join(root, 'src', 'data.js'), `window.TL=${JSON.stringify(tl)};\n`);
 if (require.main === module) {
   for (const s of scenes) console.log(s.id.padEnd(6), s.start.toFixed(2), '→', s.end.toFixed(2), s.lines.map(l => `${l.id}@${l.at.toFixed(2)}`).join(' '));
   console.log('duration', tl.duration);

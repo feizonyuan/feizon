@@ -364,7 +364,7 @@ function sceneBody(t) {
     withAlpha(seg(t, tBody, tBody + 0.3), () => label('只有一台，不能宕机', 600, 1088, { size: 28, color: C.RED, w: 700 }));
   });
   // everything gets cheaper, lifespan doesn't (l12)
-  const tCheap = wordT('l12', '变便宜'), tLife = wordT('l12', '寿命') - 0.15;
+  const tCheap = wordT('l12', '变便宜'), tLife = wordT('l12', '唯一') - 0.1, tLabel = wordT('l12', '寿命') - 0.15;
   const a2 = seg(t, l12.at - 0.1, l12.at + 0.2) * (1 - seg(t, l13.at - 0.2, l13.at + 0.05));
   withAlpha(a2, () => {
     const px = 170, py = 690, pw = 800, ph = 420;
@@ -380,7 +380,7 @@ function sceneBody(t) {
     });
     if (t > tLife) {
       path([[px, py + 70], [px + pw, py + 70]], cubicOut(seg(t, tLife, tLife + 0.6)), C.RED, 6);
-      withAlpha(seg(t, tLife + 0.2, tLife + 0.5), () => {
+      withAlpha(seg(t, tLabel, tLabel + 0.3), () => {
         label('寿命', px - 14, py + 79, { size: 30, align: 'right', color: C.RED, w: 700 });
         text('唯一越来越稀缺的', px + pw, py + 50, { fam: 'sans', w: 700, size: 30, color: C.RED, align: 'right' });
       });
