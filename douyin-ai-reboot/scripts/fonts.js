@@ -3,13 +3,13 @@
 const fs = require('fs'), path = require('path');
 const root = path.join(__dirname, '..');
 const SRC = process.env.FONT_SRC;
-const corpus = [...new Set(fs.readFileSync(path.join(root, 'src', 'scenes.js'), 'utf8') + fs.readFileSync(path.join(root, 'script.json'), 'utf8') +
+const corpus = [...new Set(fs.readFileSync(path.join(root, 'src', 'scenes.js'), 'utf8') + fs.readFileSync(path.join(root, 'src', 'engine.js'), 'utf8') + fs.readFileSync(path.join(root, 'script.json'), 'utf8') +
   '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.,:;!?¥%+-=×/→()（）')].join('');
 const cps = [...corpus].map(ch => ch.codePointAt(0));
 const FACES = [
-  ['noto-sans-sc', ['500.css', '700.css', '900.css']],
-  ['zcool-qingke-huangyou', ['400.css']],
-  ['press-start-2p', ['400.css']],
+  ['noto-sans-sc', ['400.css', '500.css', '700.css', '900.css']],
+  ['noto-serif-sc', ['700.css', '900.css']],
+  ['inter', ['500.css', '700.css', '800.css']],
 ];
 const out = [];
 fs.rmSync(path.join(root, 'src', 'fonts'), { recursive: true, force: true });

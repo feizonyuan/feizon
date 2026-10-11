@@ -1,6 +1,6 @@
 // Build the timeline from the voice-over durations and bundle it into src/data.js.
 // Every scene starts with a short lead-in, lines follow each other with a small gap,
-// and each quest scene keeps a tail for its "quest clear" pop-up.
+// and each section keeps a short tail so its takeaway can land.
 const fs = require('fs'), path = require('path');
 const root = path.join(__dirname, '..');
 const lines = JSON.parse(fs.readFileSync(path.join(root, 'script.json')));
@@ -8,7 +8,7 @@ const dur = JSON.parse(fs.readFileSync(path.join(root, 'audio', 'durations.json'
 
 const FPS = 60;
 const LEAD = { hook: 0.15, intro: 0.25, ai: 0.3, map: 0.3, free: 0.3, body: 0.3, end: 0.3 };
-const TAIL = { hook: 0.3, intro: 0.35, ai: 1.15, map: 1.15, free: 1.15, body: 1.15, end: 3.4 };
+const TAIL = { hook: 0.3, intro: 0.45, ai: 0.75, map: 0.75, free: 0.75, body: 0.75, end: 3.2 };
 const GAP = 0.28;
 // Subtitle words drawn in the accent colour.
 const HL = {
