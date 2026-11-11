@@ -19,14 +19,14 @@ export const EVENTS = [
     id: 'breakdown',
     weight: 12,
     name: '设备故障',
-    text: '发电机坏了，必须马上修，花费 6 物资。存粮不够的部分只能赊账。',
+    text: '发电机坏了，必须马上修。',
     concept: '没有应急储备时，意外支出会直接变成债务',
   },
   {
     id: 'windfall',
     weight: 10,
     name: '路过的商队',
-    text: '商队留下了 8 物资作为借宿的谢礼。',
+    text: '他们借宿一晚，留下了谢礼。',
   },
   {
     id: 'shortage',
