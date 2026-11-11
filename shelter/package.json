@@ -1,0 +1,9 @@
+{
+  "name": "shelter",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "simulate": "node scripts/simulate.js"
+  }
+}
