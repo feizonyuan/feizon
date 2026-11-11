@@ -199,3 +199,22 @@ test('每一章用稳健打法都能通关', () => {
     assert.ok(won >= 120, `第 ${chapter} 章 200 局只赢了 ${won} 局`);
   }
 });
+
+test('背包里的东西放进仓库：不推进天数，记入当天的搜刮', () => {
+  let s = act(newGame(1), { type: 'gather', amount: 7 });
+  assert.equal(s.supplies, RULES.startSupplies + 7);
+  assert.equal(s.week, 1);
+  s = act(act(s, { type: 'gather', amount: 3 }), { type: 'rest' });
+  assert.equal(s.lastWeek.scavenged, 10);
+  assert.equal(s.stats.scavenged, 10);
+  assert.equal(act(s, { type: 'rest' }).lastWeek?.scavenged ?? 0, 0);
+});
+
+test('在外面受伤：当天结束，之后几天不能出门', () => {
+  let s = act(with_({ supplies: 60 }), { type: 'hurt', days: 3, by: 'dog' });
+  assert.equal(s.week, 2);
+  assert.equal(s.injuredWeeks, 3);
+  assert.equal(s.stats.injuries, 1);
+  for (let i = 0; i < 3; i++) s = act(s.pending ? act(s, legalActions(s).at(-1)) : s, { type: 'rest' });
+  assert.equal(s.injuredWeeks, 0);
+});

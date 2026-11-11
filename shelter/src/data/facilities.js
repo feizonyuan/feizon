@@ -1,4 +1,4 @@
-// 设施数据。cost: 建造花费；produce: 每周产出；upkeep: 每周维护消耗。
+// 设施数据。cost: 建造花费；produce: 每天产出；upkeep: 每天维护消耗。
 // concept: 复盘页用来“翻译回现实”的财务概念。
 export const FACILITIES = {
   farm: {
@@ -46,7 +46,7 @@ export const FACILITIES = {
     cost: 40,
     produce: 0,
     upkeep: 3,
-    note: '搜刮收获 +30%，但每周烧油',
-    concept: '负债：看着像资产，其实每周在吃钱',
+    note: '搜刮收获 +30%，但每天烧油',
+    concept: '负债：看着像资产，其实每天在吃钱',
   },
 };

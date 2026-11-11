@@ -16,7 +16,7 @@ export const RULES = {
     deep: { min: 14, max: 21, injury: 0.35, injuryWeeks: 3 },
   },
   crewBonus: 0.5,
-  depletion: 0.004, // 附近的废墟越搜越空：每周少 0.4%
+  depletion: 0.004, // 附近的废墟越搜越空：每天少 0.4%
   depletionFloor: 0.5,
   truckBonus: 0.3,
   blightWeeks: 2,
@@ -46,6 +46,7 @@ export function newGame(seed = 1, chapter = CHAPTERS.length) {
     people: RULES.startPeople,
     injuredWeeks: 0,
     injuredBy: null,
+    gathered: 0,
     blightWeeks: 0,
     partsShortage: false,
     facilities: [],
@@ -92,7 +93,7 @@ export function isWinter(state, week = state.week) {
   return cfg(state).winter && (week - 1) % RULES.yearWeeks >= RULES.yearWeeks - RULES.winterWeeks;
 }
 
-// 距离下一个寒冬还有几周；正处于寒冬时为 0，本章没有寒冬时为 null。
+// 距离下一个寒冬还有几天；正处于寒冬时为 0，本章没有寒冬时为 null。
 export function weeksToWinter(state) {
   if (!cfg(state).winter) return null;
   for (let i = 0; i < RULES.yearWeeks; i++) if (isWinter(state, state.week + i)) return i;
@@ -129,7 +130,7 @@ export function dismantleValue(state, id) {
   return Math.floor(FACILITIES[id].cost * (state.partsShortage ? 1 : RULES.dismantleRefund));
 }
 
-// 废墟剩余的丰富程度，1 为刚开局，随周数下降到下限。
+// 废墟剩余的丰富程度，1 为刚开局，随天数下降到下限。
 export function depletion(state) {
   return Math.max(RULES.depletionFloor, 1 - RULES.depletion * (state.week - 1));
 }
@@ -233,18 +234,39 @@ export function act(state, action) {
       if (s.facilities.includes('truck')) s.seen.truck = true;
       note(s, action.depth === 'deep' ? '深入废墟搜刮' : '在附近搜刮', 'good', gain);
       if (rand(s) < spec.injury) {
-        s.injuredWeeks = spec.injuryWeeks + 1; // 本周结算会先减 1
+        s.injuredWeeks = spec.injuryWeeks + 1; // 本天结算会先减 1
         s.injuredBy = action.depth;
         s.stats.injuries += 1;
         s.seen.injury = true;
-        note(s, `你受伤了，接下来 ${spec.injuryWeeks} 周不能出门`, 'bad');
+        note(s, `你受伤了，接下来 ${spec.injuryWeeks} 天不能出门`, 'bad');
       }
       endWeek(s, gain);
       return s;
     }
+    case 'gather': {
+      // 把背包里的东西放进仓库。不推进天数。
+      const amount = positiveInt(action.amount);
+      s.supplies += amount;
+      s.gathered += amount;
+      s.stats.scavenged += amount;
+      if (s.facilities.includes('truck')) s.seen.truck = true;
+      note(s, '搜刮带回', 'good', amount);
+      return s;
+    }
+    case 'hurt': {
+      // 在外面受伤：当天结束，之后 days 天不能出门。
+      const days = positiveInt(action.days);
+      s.injuredWeeks = days + 1; // 当晚结算会先减 1
+      s.injuredBy = action.by === 'night' ? 'night' : 'deep';
+      s.stats.injuries += 1;
+      s.seen.injury = true;
+      note(s, `你受伤了，接下来 ${days} 天不能出门`, 'bad');
+      endWeek(s, s.gathered);
+      return s;
+    }
     case 'rest':
-      note(s, s.injuredWeeks > 0 ? '养伤' : '留守一周', 'info');
-      endWeek(s, 0);
+      if (s.injuredWeeks > 0) note(s, '养伤', 'info');
+      endWeek(s, s.gathered);
       return s;
     default:
       throw new Error('未知动作');
@@ -268,8 +290,9 @@ function borrow(s, amount) {
   s.seen.debt = true;
 }
 
-// 周末结算的前半段：自产、消耗、利息。断粮时进入“断粮”事件，等玩家决定。
+// 天末结算的前半段：自产、消耗、利息。断粮时进入“断粮”事件，等玩家决定。
 function endWeek(s, scavenged) {
+  s.gathered = 0;
   const produced = production(s);
   const eaten = s.people * RULES.eatPerPerson;
   const maintain = upkeep(s);
@@ -299,7 +322,7 @@ function crisis(s) {
   const choices = [];
   const owed = crisisDebt(short);
   if (cfg(s).borrow && s.debt + owed <= RULES.debtCap) {
-    choices.push({ id: 'borrow', label: `向隔壁赊 ${short} 份粮`, hint: `趁火打劫：记账 ${owed}，另加每周一成利息` });
+    choices.push({ id: 'borrow', label: `向隔壁赊 ${short} 份粮`, hint: `趁火打劫：记账 ${owed}，另加每天一成利息` });
   }
   for (const id of new Set(s.facilities)) {
     const value = fireSaleValue(s, id);
@@ -319,7 +342,7 @@ function crisis(s) {
   };
 }
 
-// 周末结算的后半段：抵债、胜负、变质、进入下一周并抽事件。
+// 天末结算的后半段：抵债、胜负、变质、进入下一天并抽事件。
 function finishWeek(s) {
   if (s.debt > RULES.debtCap) {
     if (s.facilities.length === 0) return die(s, 'debt');

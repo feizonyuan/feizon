@@ -28,8 +28,8 @@ function frame(history, maxY, height, s) {
     <text class="tick" x="${PAD.l - 6}" y="${s.y(maxY) + 3}" text-anchor="end">${maxY}</text>
     <text class="tick" x="${PAD.l - 6}" y="${s.y(mid) + 3}" text-anchor="end">${mid}</text>
     <text class="tick" x="${PAD.l - 6}" y="${s.y(0) + 3}" text-anchor="end">0</text>
-    <text class="tick" x="${PAD.l}" y="${height - 4}">第 1 周</text>
-    ${last > 1 ? `<text class="tick" x="${W - PAD.r}" y="${height - 4}" text-anchor="end">第 ${last} 周</text>` : ''}`;
+    <text class="tick" x="${PAD.l}" y="${height - 4}">第 1 天</text>
+    ${last > 1 ? `<text class="tick" x="${W - PAD.r}" y="${height - 4}" text-anchor="end">第 ${last} 天</text>` : ''}`;
 }
 
 const niceMax = (v) => Math.max(10, Math.ceil(v / 10) * 10);
@@ -48,7 +48,7 @@ function flowChart(history) {
     yMade = mid + (up ? -7 : 7);
     yUsed = mid + (up ? 7 : -7);
   }
-  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="每周自产与消耗走势">
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="每天自产与消耗走势">
     ${frame(history, maxY, H, s)}
     <polyline class="line used" points="${points(history, 'expenses', s)}"/>
     <polyline class="line made" points="${points(history, 'production', s)}"/>
@@ -129,8 +129,8 @@ function wonLedger(state) {
       <thead><tr><th>避难所</th><th>现实里叫</th><th>你的数字</th></tr></thead>
       <tbody>
         <tr><td>出门搜刮</td><td>工资（主动收入）</td><td>共 ${state.stats.scavenged}</td></tr>
-        <tr><td>设施自产</td><td>被动收入</td><td class="good">每周 ${made}</td></tr>
-        <tr><td>口粮和维护</td><td>生活开支</td><td class="bad">每周 ${used}</td></tr>
+        <tr><td>设施自产</td><td>被动收入</td><td class="good">每天 ${made}</td></tr>
+        <tr><td>口粮和维护</td><td>生活开支</td><td class="bad">每天 ${used}</td></tr>
         <tr><td>${assets || '设施'}</td><td>资产</td><td>${state.facilities.length} 座</td></tr>
         <tr><td>欠隔壁的粮</td><td>负债</td><td>0</td></tr>
       </tbody>
@@ -140,11 +140,10 @@ function wonLedger(state) {
 }
 
 export function shareText(state) {
-  const chapter = chapterById(state.chapter);
   if (state.status === 'won') {
-    return `《避难所：不再出门》第 ${chapter.id} 章「${chapter.name}」：我用了 ${state.week} 周，让避难所自己养活了自己。`;
+    return `《避难所：不再出门》：我用了 ${state.week} 天，让避难所自己养活了自己。`;
   }
-  return `《避难所：不再出门》第 ${chapter.id} 章「${chapter.name}」：我撑到了第 ${state.week} 周，死因是“${CAUSES[state.cause].title}”。`;
+  return `《避难所：不再出门》：我撑到了第 ${state.week} 天，死因是“${CAUSES[state.cause].title}”。`;
 }
 
 export function reportHtml(state, meta) {
@@ -152,17 +151,17 @@ export function reportHtml(state, meta) {
   const won = state.status === 'won';
   const cause = CAUSES[state.cause];
   const next = CHAPTERS.find((c) => c.id === chapter.id + 1);
-  const best = meta.best[chapter.id];
+  const best = meta.best;
 
   const head = won
     ? `<header class="verdict won">
-        <p class="stamp">第 ${chapter.id} 章 · ${chapter.name}</p>
-        <h1>第 ${state.week} 周，<br>你不用再出门了</h1>
-        <p class="lede">避难所每周自产 ${production(state)}，消耗 ${expenses(state)}。从今天起，出不出门由你决定。${best === state.week ? '这是你在本章最快的一次。' : ''}</p>
+        <p class="stamp">B-07 号避难所 · 值班总结</p>
+        <h1>第 ${state.week} 天，<br>你不用再出门了</h1>
+        <p class="lede">避难所每天自产 ${production(state)}，消耗 ${expenses(state)}。从今天起，出不出门由你决定。${best === state.week ? '这是你最快的一次。' : ''}</p>
       </header>`
     : `<header class="verdict dead">
-        <p class="stamp">第 ${chapter.id} 章 · ${chapter.name}</p>
-        <h1>第 ${state.week} 周，<br>避难所没能撑下去</h1>
+        <p class="stamp">B-07 号避难所 · 值班总结</p>
+        <h1>第 ${state.week} 天，<br>避难所没能撑下去</h1>
         <div class="cause">
           <p class="cause-kicker">死因</p>
           <h2>${cause.title}</h2>
@@ -180,7 +179,7 @@ export function reportHtml(state, meta) {
     ${encounters(state)}
     <div class="report-actions">
       ${won && next ? `<button class="btn primary" data-act="start" data-chapter="${next.id}">进入第 ${next.id} 章「${next.name}」</button>` : ''}
-      <button class="btn ${won && next ? '' : 'primary'}" data-act="start" data-chapter="${chapter.id}">${won ? '再玩一次本章' : '再来一局'}</button>
+      <button class="btn ${won && next ? '' : 'primary'}" data-act="start" data-chapter="${chapter.id}">${won ? '再玩一次' : '再来一局'}</button>
       <button class="btn" data-act="share">复制战报</button>
       <button class="btn ghost" data-act="home">回到首页</button>
     </div>
