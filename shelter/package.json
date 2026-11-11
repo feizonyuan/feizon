@@ -1,10 +1,11 @@
 {
-  "name": "lying-flat",
+  "name": "lying-flat-plan",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "node --test",
     "bundle": "node scripts/bundle.js",
-    "serve": "python3 -m http.server 4173"
+    "serve": "python3 -m http.server 4173",
+    "simulate": "node scripts/simulate.js"
   }
 }

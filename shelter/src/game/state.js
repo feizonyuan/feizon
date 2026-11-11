@@ -1,479 +1,478 @@
-// 游戏规则：物品、种植、钱、房租、借贷、每日结算和生活评语。
-// 这里只有数据和计算，不碰画面，所以可以直接用 node 测试。
+// 《躺平计划》的规则：时间、体力、心力、打工、学习、吃饭、资产、负债、账单日。
+// 这里只有数据和计算，不碰画面，可以直接用 node 测试和模拟。
 
 export const RULES = {
-  dayStartHour: 6,
-  dayHours: 18, // 6:00 到 24:00
-  daySeconds: 170, // 一天的真实秒数
-  startMoney: 40,
-  rent: 60,
-  rentEvery: 5,
-  lateRentPenalty: 0.2,
-  inflation: 0.04, // 每个交租周期物价上涨
-  interest: 0.05, // 欠款每天的利息
-  borrowMax: 300,
-  debtCap: 450, // 欠到这个数，放贷的人会来搬东西
-  foodPerDay: 45,
-  moodPerDay: 8,
-  job: { pay: 34, energy: 40, hours: 4 },
-  energy: { till: 3, water: 1, plant: 1, scavenge: 3, fish: 4, forage: 1 },
-  lowMood: 30,
-  slots: 10,
-  dogFee: 0.15,
+  wakeHour: 7,
+  dayHours: 16, // 7:00 到 23:00，其余 8 小时睡觉
+  daySeconds: 190, // 醒着的一天对应的真实秒数
+  monthDays: 5, // 一个账单周期
+  start: { cash: 300, sanity: 40, fullness: 60, credit: 60 },
+  rent: 400,
+  rentHike: 0.15,
+  rentHikeMonth: 3, // 第 3 个月开始时通知涨租
+  bunkRent: 200,
+  deposit: 300,
+  job: { hours: 4, pay: 60, energy: 30, sanity: 12, open: 7, close: 22 },
+  repair: { hours: 2, pay: 80, energy: 22, sanity: 5, perDay: 3 },
+  course: { classes: 8, hours: 2, fee: 30, energy: 10, sanity: 6 },
+  bento: { price: 15, fullness: 50, hours: 0.5 },
+  grocery: { price: 5 },
+  cook: { hours: 1, fullness: 50, sanity: 4 },
+  tea: { price: 18, sanity: 25, hours: 0.5 },
+  bench: { hours: 1, sanity: 10 },
+  fishing: { hours: 2, sanity: 22, lessons: 3 },
+  lesson: { hours: 0.5, sanity: 5, count: 6 },
+  fullnessPerDay: 50,
+  sanityPerNight: 8,
+  vending: { cost: 600, income: 110, resale: 300, max: 6 },
+  phone: { months: 6, pay: 90, sanityNow: 30, nightly: 3 },
+  ebike: { months: 8, pay: 150, upkeep: 20, speed: 1.45 },
+  loan: { rate: 0.1, perCredit: 8 },
+  sick: { fee: 260, energyCap: 50, sanity: 8, base: 0.02, tired: 0.15, overwork: 0.35 },
+  scam: { rate: 0.3, minCash: 400, fromMonth: 2, iq: 4, stakes: [300, 500] },
+  lowSanity: 30,
+  winStreak: 3,
 };
 
-export const ITEMS = {
-  hoe: { name: '锄头', tool: true, hint: '对着院子里的土地用，翻出一块田' },
-  can: { name: '水壶', tool: true, hint: '给田里的作物浇水，每天浇一次才会长' },
-  rod: { name: '鱼竿', tool: true, hint: '站在池塘边对着水用' },
-  seedCabbage: { name: '青菜种子', buy: 5, crop: 'cabbage' },
-  seedPotato: { name: '土豆种子', buy: 9, crop: 'potato' },
-  seedTomato: { name: '番茄种子', buy: 16, crop: 'tomato' },
-  cabbage: { name: '青菜', sell: 11, food: 12 },
-  potato: { name: '土豆', sell: 24, food: 22 },
-  tomato: { name: '番茄', sell: 15, food: 14, mood: 2 },
-  tin: { name: '罐头', buy: 9, sell: 5, food: 40 },
-  scrap: { name: '废铁', sell: 6 },
-  battery: { name: '电池', sell: 22 },
-  berry: { name: '野莓', sell: 3, food: 8, mood: 3 },
-  mushroom: { name: '蘑菇', sell: 7, food: 10 },
-  fish: { name: '鱼', sell: 16, food: 30 },
-  tea: { name: '奶茶', buy: 10, food: 5, mood: 18 },
-};
-
-export const CROPS = {
-  cabbage: { name: '青菜', days: 2 },
-  potato: { name: '土豆', days: 3 },
-  tomato: { name: '番茄', days: 4, regrow: 2 },
-};
-
-// 能自己生钱的设备：买下来放在院子里，每天早上自动进账。
-export const ASSETS = {
-  rain: { name: '雨水收集器', cost: 120, income: 8, note: '接雨水卖给营地' },
-  coop: { name: '鸡窝', cost: 220, income: 16, note: '每天下蛋，阿梅上门收' },
-  solar: { name: '太阳能充电站', cost: 380, income: 30, note: '邻居来充电要付钱' },
-  vending: { name: '自动售货机', cost: 650, income: 55, note: '摆在路口，自己卖货' },
-};
-
-// 让日子舒服的东西：买的时候花钱，之后每天还要花钱。
-export const LUXURY = {
-  console: { name: '游戏机', cost: 150, upkeep: 3, note: '在屋里打游戏，心情大涨。每天电费 3' },
-  bike: { name: '电动车', cost: 200, upkeep: 5, note: '走得快很多。每天充电 5' },
-};
-
-export const SHOP = ['seedCabbage', 'seedPotato', 'seedTomato', 'tin'];
-
-const LEDGER = () => ({ wage: 0, sales: 0, passive: 0, rent: 0, food: 0, fun: 0, biz: 0, invest: 0, interest: 0, other: 0 });
+const HOURS = () => ({ work: 0, study: 0, rest: 0, fun: 0, chores: 0 });
+const INCOME = () => ({ wage: 0, repair: 0, passive: 0, scam: 0 });
+const SPEND = () => ({ rent: 0, installments: 0, upkeep: 0, interest: 0, food: 0, fun: 0, study: 0, medical: 0, invest: 0 });
+const MONTH = () => ({ hours: HOURS(), income: INCOME(), spend: SPEND(), days: 0 });
 
 export function newState(seed = 1) {
-  const inv = Array(RULES.slots).fill(null);
-  [
-    ['hoe', 1],
-    ['can', 1],
-    ['rod', 1],
-    ['seedCabbage', 4],
-    ['tin', 2],
-  ].forEach(([id, n], i) => (inv[i] = { id, n }));
   return {
-    v: 1,
+    v: 2,
     seed: seed >>> 0,
     day: 1,
-    minutes: 0, // 从早上 6 点算起
-    money: RULES.startMoney,
+    minutes: 0, // 从早上 7 点算起
+    cash: RULES.start.cash,
     debt: 0,
     energy: 100,
-    food: 70,
-    mood: 60,
-    inv,
-    sel: 0,
-    soil: {}, // "x,y" → { wet, crop, age, grown }
-    assets: [],
-    owned: {},
-    cool: {}, // 采集点 id → 还要几天才恢复
-    index: 1, // 物价指数
-    period: { ...LEDGER(), moodSum: 0, days: 0, lazyDays: 0 },
-    total: LEDGER(),
-    worked: 0, // 今天花掉的体力
-    jobDay: 0,
-    free: false,
-    freeDay: 0,
-    reviews: 0,
-    history: [],
+    sanity: RULES.start.sanity,
+    fullness: RULES.start.fullness,
+    iq: 0, // 财商：只决定能看到多少信息
+    credit: RULES.start.credit,
+    classes: 0,
+    groceries: 0,
+    home: 'room', // room：出租屋；bunk：破产后搬去的床位
+    rent: RULES.rent,
+    machines: 0,
+    phone: { owned: false, left: 0 },
+    ebike: { owned: false, left: 0 },
+    scam: null, // { amount, age }
+    scamGone: false,
+    ledger: false, // 老陈给的旧账本，解锁手机里的两张表
+    lessons: 0,
+    lessonDay: 0,
+    today: { ...HOURS(), repairs: 0, worked: 0 },
+    month: MONTH(),
+    total: { income: INCOME(), spend: SPEND() },
+    streak: 0,
+    won: false,
+    statements: [],
   };
 }
 
-export const price = (s, base) => Math.max(1, Math.round(base * s.index));
+const clamp = (n) => Math.max(0, Math.min(100, Math.round(n)));
+
+export const monthOf = (s) => Math.floor((s.day - 1) / RULES.monthDays) + 1;
+export const daysToBill = (s) => RULES.monthDays - ((s.day - 1) % RULES.monthDays);
+export const hoursLeft = (s) => RULES.dayHours - s.minutes / 60;
+export const hourNow = (s) => RULES.wakeHour + s.minutes / 60;
+export const skilled = (s) => s.classes >= RULES.course.classes;
+export const loanLimit = (s) => Math.round(s.credit * RULES.loan.perCredit);
+export const rentNow = (s) => (s.home === 'room' ? s.rent : RULES.bunkRent);
 
 export function clockText(s) {
   const m = Math.min(RULES.dayHours * 60, Math.floor(s.minutes / 10) * 10);
-  return `${String(RULES.dayStartHour + Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  return `${String(RULES.wakeHour + Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 }
 
-/* ---------- 钱 ---------- */
+/* ---------- 钱和时间的记账 ---------- */
 
-export function earn(s, amount, kind) {
-  s.money += amount;
-  s.period[kind] += amount;
-  s.total[kind] += amount;
+function earn(s, amount, kind) {
+  s.cash += amount;
+  s.month.income[kind] += amount;
+  s.total.income[kind] += amount;
 }
 
-export function spend(s, amount, kind) {
-  if (s.money < amount) return false;
-  s.money -= amount;
-  s.period[kind] += amount;
-  s.total[kind] += amount;
+function record(s, amount, kind) {
+  s.month.spend[kind] += amount;
+  s.total.spend[kind] += amount;
+}
+
+function pay(s, amount, kind) {
+  if (s.cash < amount) return false;
+  s.cash -= amount;
+  record(s, amount, kind);
   return true;
 }
 
-export const rentNow = (s) => price(s, RULES.rent);
-
-export function upkeep(s) {
-  return Object.keys(s.owned).reduce((sum, id) => sum + price(s, LUXURY[id].upkeep), 0);
+function spendHours(s, hours, kind) {
+  s.minutes += hours * 60;
+  s.today[kind] += hours;
+  s.month.hours[kind] += hours;
 }
 
-export function passiveIncome(s) {
-  return s.assets.reduce((sum, id) => sum + price(s, ASSETS[id].income), 0);
-}
+const tooLate = (s, hours) => (hoursLeft(s) < hours ? '太晚了，今天来不及了。' : null);
 
-// 什么都不干也要花掉的钱：房租摊到每天，加两顿饭，加各种电费。
-export function livingCost(s) {
-  return Math.ceil(rentNow(s) / RULES.rentEvery) + 2 * price(s, ITEMS.tin.buy) + upkeep(s);
-}
+/* ---------- 每天能做的事 ---------- */
 
-export function netWorth(s) {
-  return s.money - s.debt + s.assets.reduce((sum, id) => sum + ASSETS[id].cost, 0);
-}
-
-export const daysToRent = (s) => RULES.rentEvery - ((s.day - 1) % RULES.rentEvery);
-
-/* ---------- 背包 ---------- */
-
-export function addItem(s, id, n = 1) {
-  const slot = s.inv.find((x) => x && x.id === id);
-  if (slot) {
-    slot.n += n;
-    return true;
-  }
-  const empty = s.inv.indexOf(null);
-  if (empty < 0) return false;
-  s.inv[empty] = { id, n };
-  return true;
-}
-
-export function takeItem(s, index, n = 1) {
-  const slot = s.inv[index];
-  if (!slot || slot.n < n || ITEMS[slot.id].tool) return false;
-  slot.n -= n;
-  if (slot.n === 0) s.inv[index] = null;
-  return true;
-}
-
-export const count = (s, id) => s.inv.find((x) => x && x.id === id)?.n ?? 0;
-
-/* ---------- 体力、吃喝 ---------- */
-
-export function energyCost(s, base) {
-  return s.mood < RULES.lowMood ? Math.ceil(base * 1.5) : base;
-}
-
-export function useEnergy(s, base) {
-  const cost = energyCost(s, base);
-  if (s.energy < cost) return false;
-  s.energy -= cost;
-  s.worked += cost;
-  return true;
-}
-
-const clamp = (n) => Math.max(0, Math.min(100, n));
-
-export function addMood(s, n) {
-  s.mood = clamp(s.mood + n);
-}
-
-export function eat(s, index) {
-  const slot = s.inv[index];
-  const item = slot && ITEMS[slot.id];
-  if (!item?.food) return null;
-  if (s.food >= 100 && !item.mood) return { full: true };
-  takeItem(s, index, 1);
-  s.food = clamp(s.food + item.food);
-  s.energy = clamp(s.energy + Math.round(item.food / 3));
-  if (item.mood) addMood(s, item.mood);
-  return { item };
-}
-
-/* ---------- 买卖 ---------- */
-
-export function buy(s, id) {
-  const item = ITEMS[id];
-  const cost = price(s, item.buy);
-  if (s.money < cost) return '钱不够';
-  if (!s.inv.some((x) => x === null || x.id === id)) return '背包满了';
-  spend(s, cost, item.crop ? 'biz' : id === 'tea' ? 'fun' : 'food');
-  addItem(s, id, 1);
+export function work(s) {
+  const j = RULES.job;
+  if (hourNow(s) < j.open) return `店里 ${j.open} 点才开门。`;
+  if (hourNow(s) + j.hours > j.close) return '这个点排不上班了，明天再来。';
+  if (s.energy < j.energy) return '你累得站不住了，干不动。';
+  spendHours(s, j.hours, 'work');
+  s.today.worked += j.hours;
+  s.energy -= j.energy;
+  s.sanity = clamp(s.sanity - j.sanity);
+  earn(s, j.pay, 'wage');
   return null;
 }
 
-export function sell(s, index, all = false) {
-  const slot = s.inv[index];
-  const item = slot && ITEMS[slot.id];
-  if (!item?.sell) return 0;
-  const n = all ? slot.n : 1;
-  const got = price(s, item.sell) * n;
-  takeItem(s, index, n);
-  earn(s, got, 'sales');
-  return got;
-}
-
-export function buyAsset(s, id, pads) {
-  const cost = price(s, ASSETS[id].cost);
-  if (s.assets.length >= pads) return '院子里没有空位了';
-  if (!spend(s, cost, 'invest')) return '钱不够';
-  s.assets.push(id);
+export function repairJob(s) {
+  const r = RULES.repair;
+  if (!skilled(s)) return '你还不会修。';
+  if (s.today.repairs >= r.perDay) return '今天的单子接完了。';
+  if (tooLate(s, r.hours)) return tooLate(s, r.hours);
+  if (s.energy < r.energy) return '你累得拿不稳螺丝刀了。';
+  spendHours(s, r.hours, 'work');
+  s.today.worked += r.hours;
+  s.today.repairs += 1;
+  s.energy -= r.energy;
+  s.sanity = clamp(s.sanity - r.sanity);
+  earn(s, r.pay, 'repair');
   return null;
 }
 
-export function buyLuxury(s, id) {
-  if (s.owned[id]) return '已经有了';
-  if (!spend(s, price(s, LUXURY[id].cost), 'fun')) return '钱不够';
-  s.owned[id] = true;
+export function study(s) {
+  const c = RULES.course;
+  if (skilled(s)) return '这门课你已经学完了。';
+  if (tooLate(s, c.hours)) return tooLate(s, c.hours);
+  if (s.sanity < RULES.lowSanity) return '脑子是木的，一个字也看不进去。先歇一歇。';
+  if (s.energy < c.energy) return '太累了，坐下就会睡着。';
+  if (!pay(s, c.fee, 'study')) return '学费不够。';
+  spendHours(s, c.hours, 'study');
+  s.energy -= c.energy;
+  s.sanity = clamp(s.sanity - c.sanity);
+  s.classes += 1;
+  return null;
+}
+
+export function buyBento(s) {
+  const b = RULES.bento;
+  if (s.fullness >= 100) return '你现在不饿。';
+  if (!pay(s, b.price, 'food')) return '钱不够。';
+  spendHours(s, b.hours, 'chores');
+  s.fullness = clamp(s.fullness + b.fullness);
+  return null;
+}
+
+export function buyGroceries(s, n = 1) {
+  if (!pay(s, RULES.grocery.price * n, 'food')) return '钱不够。';
+  s.groceries += n;
+  return null;
+}
+
+export function cook(s) {
+  const c = RULES.cook;
+  if (s.groceries < 1) return '没有食材了。便利店有卖。';
+  if (s.fullness >= 100) return '你现在不饿。';
+  if (tooLate(s, c.hours)) return tooLate(s, c.hours);
+  s.groceries -= 1;
+  spendHours(s, c.hours, 'chores');
+  s.fullness = clamp(s.fullness + c.fullness);
+  s.sanity = clamp(s.sanity + c.sanity);
+  return null;
+}
+
+export function buyTea(s) {
+  const t = RULES.tea;
+  if (!pay(s, t.price, 'fun')) return '钱不够。';
+  spendHours(s, t.hours, 'fun');
+  s.sanity = clamp(s.sanity + t.sanity);
+  return null;
+}
+
+export function sitBench(s) {
+  const b = RULES.bench;
+  if (tooLate(s, b.hours)) return tooLate(s, b.hours);
+  spendHours(s, b.hours, 'rest');
+  s.sanity = clamp(s.sanity + b.sanity);
+  return null;
+}
+
+export function fishWithChen(s) {
+  const f = RULES.fishing;
+  if (s.lessons < f.lessons) return '老陈还没打算把备用的鱼竿借给你。';
+  if (tooLate(s, f.hours)) return tooLate(s, f.hours);
+  spendHours(s, f.hours, 'rest');
+  s.sanity = clamp(s.sanity + f.sanity);
+  return null;
+}
+
+// 和老陈聊天：一天一课，一共六课。第一课拿到旧账本。
+export function lesson(s) {
+  const l = RULES.lesson;
+  if (s.lessons >= l.count) return { done: true };
+  if (s.lessonDay === s.day) return { wait: true };
+  spendHours(s, l.hours, 'rest');
+  s.lessonDay = s.day;
+  s.lessons += 1;
+  s.iq += 1;
+  s.sanity = clamp(s.sanity + l.sanity);
+  if (s.lessons === 1) s.ledger = true;
+  return { index: s.lessons };
+}
+
+/* ---------- 资产与负债 ---------- */
+
+export function buyVending(s) {
+  const v = RULES.vending;
+  if (s.machines >= v.max) return '这条街上已经没有空位了。';
+  if (!pay(s, v.cost, 'invest')) return '钱不够。';
+  s.machines += 1;
+  return null;
+}
+
+export function sellVending(s) {
+  if (s.machines < 1) return '你没有售货机。';
+  s.machines -= 1;
+  s.cash += RULES.vending.resale;
+  return null;
+}
+
+export function takePhone(s) {
+  if (s.phone.owned) return '你已经有一台了。';
+  s.phone = { owned: true, left: RULES.phone.months };
+  s.sanity = clamp(s.sanity + RULES.phone.sanityNow);
+  return null;
+}
+
+export function takeEbike(s) {
+  if (s.ebike.owned) return '你已经有一辆了。';
+  s.ebike = { owned: true, left: RULES.ebike.months };
   return null;
 }
 
 export function borrow(s, amount) {
-  if (s.debt + amount > RULES.borrowMax) return '他不肯再借了';
+  if (s.debt + amount > loanLimit(s)) return '额度不够。';
   s.debt += amount;
-  s.money += amount;
+  s.cash += amount;
   return null;
 }
 
 export function repay(s, amount) {
-  const paid = Math.min(amount, s.debt, s.money);
+  const paid = Math.min(amount, s.debt, s.cash);
   s.debt -= paid;
-  s.money -= paid;
+  s.cash -= paid;
   return paid;
 }
 
-export function doJob(s) {
-  if (s.jobDay === s.day) return '今天的活已经干完了';
-  if (s.minutes + RULES.job.hours * 60 > RULES.dayHours * 60 - 60) return '太晚了，明天再来';
-  if (!useEnergy(s, RULES.job.energy)) return '你累得搬不动了';
-  s.jobDay = s.day;
-  s.minutes += RULES.job.hours * 60;
-  earn(s, price(s, RULES.job.pay), 'wage');
-  addMood(s, -6);
+export const scamVisible = (s) => !s.scamGone && monthOf(s) >= RULES.scam.fromMonth && (s.scam || s.cash >= RULES.scam.minCash);
+
+export function investScam(s, amount) {
+  if (s.scam) return '你已经投过了。';
+  if (!pay(s, amount, 'invest')) return '钱不够。';
+  s.scam = { amount, age: 0 };
   return null;
 }
 
-/* ---------- 种地 ---------- */
-
-export function cropStage(tile) {
-  if (!tile?.crop) return -1;
-  const def = CROPS[tile.crop];
-  if (tile.age >= def.days) return 3;
-  return Math.min(2, Math.floor((tile.age / def.days) * 3));
-}
-
-export function till(s, key) {
-  if (s.soil[key]) return '这里已经翻过了';
-  if (!useEnergy(s, RULES.energy.till)) return '没力气了';
-  s.soil[key] = { wet: false, crop: null, age: 0 };
+export function moveBack(s) {
+  if (s.home === 'room') return '你就住在这儿。';
+  if (s.cash < RULES.deposit) return `押金要 ${RULES.deposit}，你的钱不够。`;
+  s.cash -= RULES.deposit;
+  record(s, RULES.deposit, 'rent');
+  s.home = 'room';
   return null;
 }
 
-export function water(s, key) {
-  const tile = s.soil[key];
-  if (!tile) return '这里没有田';
-  if (tile.wet) return '已经浇过了';
-  if (!useEnergy(s, RULES.energy.water)) return '没力气了';
-  tile.wet = true;
-  return null;
+/* ---------- 两张表 ---------- */
+
+export const passiveIncome = (s) => s.machines * RULES.vending.income;
+
+// 每个账单日一定要付的钱（不含伙食）。
+export function fixedCosts(s) {
+  const installments = (s.phone.left > 0 ? RULES.phone.pay : 0) + (s.ebike.left > 0 ? RULES.ebike.pay : 0);
+  const upkeep = s.ebike.owned ? RULES.ebike.upkeep : 0;
+  const interest = Math.ceil(s.debt * RULES.loan.rate);
+  return { rent: rentNow(s), installments, upkeep, interest, total: rentNow(s) + installments + upkeep + interest };
 }
 
-export function plant(s, key, index) {
-  const tile = s.soil[key];
-  const slot = s.inv[index];
-  const crop = slot && ITEMS[slot.id].crop;
-  if (!tile) return '先用锄头翻地';
-  if (!crop) return '这不是种子';
-  if (tile.crop) return '这里已经种了东西';
-  if (!useEnergy(s, RULES.energy.plant)) return '没力气了';
-  takeItem(s, index, 1);
-  tile.crop = crop;
-  tile.age = 0;
-  return null;
-}
-
-export function harvest(s, key) {
-  const tile = s.soil[key];
-  if (cropStage(tile) !== 3) return null;
-  if (!addItem(s, tile.crop, 1)) return { error: '背包满了' };
-  const id = tile.crop;
-  const def = CROPS[id];
-  if (def.regrow) tile.age = def.days - def.regrow;
-  else {
-    tile.crop = null;
-    tile.age = 0;
+// 资产负债表：不看名字，只看每个账单日钱往哪边流。
+export function balanceSheet(s) {
+  const assets = [];
+  const liabilities = [];
+  if (s.machines > 0) {
+    assets.push({ name: `自动售货机 ×${s.machines}`, value: s.machines * RULES.vending.resale, flow: passiveIncome(s) });
   }
-  return { id };
+  if (s.scam) assets.push({ name: '稳盈宝', value: s.scam.amount, flow: Math.round(s.scam.amount * RULES.scam.rate), doubt: true });
+  if (s.phone.left > 0) {
+    liabilities.push({ name: '分期手机', value: s.phone.left * RULES.phone.pay, flow: -RULES.phone.pay, left: s.phone.left });
+  }
+  if (s.ebike.owned) {
+    const pay = s.ebike.left > 0 ? RULES.ebike.pay : 0;
+    liabilities.push({ name: '电动车', value: s.ebike.left * RULES.ebike.pay, flow: -(pay + RULES.ebike.upkeep), left: s.ebike.left });
+  }
+  if (s.debt > 0) liabilities.push({ name: '闪电贷', value: s.debt, flow: -Math.ceil(s.debt * RULES.loan.rate) });
+  return { cash: s.cash, assets, liabilities };
 }
 
 /* ---------- 一天结束 ---------- */
 
-// 睡觉（或者熬到半夜倒下）之后调用。返回一份早晨的小结。
-export function endDay(s, passedOut = false) {
-  const report = { day: s.day + 1, lines: [], review: null, freed: false, seized: null };
+// 睡觉后调用。rand 可以替换，方便测试。返回早晨要告诉玩家的事。
+export function endDay(s, rand = Math.random) {
+  const report = { day: s.day + 1, lines: [], sick: false, bill: null, won: false };
   const line = (text, delta = 0, tone = 'info') => report.lines.push({ text, delta, tone });
 
-  // 记下这一天过得怎么样
-  s.period.days += 1;
-  s.period.moodSum += s.mood;
-  if (s.worked < 15) s.period.lazyDays += 1;
-
-  // 作物：浇过水的长一天
-  for (const tile of Object.values(s.soil)) {
-    if (tile.crop && tile.wet && tile.age < CROPS[tile.crop].days) tile.age += 1;
-    tile.wet = false;
-  }
-  for (const id of Object.keys(s.cool)) {
-    s.cool[id] -= 1;
-    if (s.cool[id] <= 0) delete s.cool[id];
-  }
-
-  // 被动收入和固定开销
-  const passive = passiveIncome(s);
-  if (passive > 0) {
-    earn(s, passive, 'passive');
-    line('院子里的设备自己赚的', passive, 'good');
-  }
-  const power = upkeep(s);
-  if (power > 0) {
-    const paid = Math.min(power, s.money);
-    spend(s, paid, 'fun');
-    if (paid < power) s.debt += power - paid;
-    line('电费', -power, 'bad');
-  }
-  if (s.debt > 0) {
-    const interest = Math.ceil(s.debt * RULES.interest);
-    s.debt += interest;
-    s.period.interest += interest;
-    s.total.interest += interest;
-    line('欠款又滚出利息', interest, 'debt');
-  }
+  const worked = s.today.worked;
+  const exhausted = s.energy < 20;
+  const hungry = s.fullness < 30;
 
   // 身体
-  const hungry = s.food < 30;
-  s.energy = passedOut ? 50 : hungry ? 60 : 100;
-  s.food = clamp(s.food - RULES.foodPerDay);
-  addMood(s, -RULES.moodPerDay - (hungry ? 8 : 0) - (passedOut ? 10 : 0));
-  if (passedOut) line('昨晚熬到半夜倒在路上，今天没什么精神', 0, 'bad');
-  else if (hungry) line('昨晚饿着肚子睡的，今天体力只恢复了一部分', 0, 'bad');
+  const bunk = s.home === 'bunk';
+  s.energy = hungry ? 65 : bunk ? 80 : 100;
+  s.fullness = clamp(s.fullness - RULES.fullnessPerDay);
+  let rest = RULES.sanityPerNight + (s.phone.owned ? RULES.phone.nightly : 0);
+  if (hungry) rest -= 6;
+  if (bunk) rest -= 5;
+  s.sanity = clamp(s.sanity + rest);
+  if (hungry) line('昨晚饿着肚子睡的，体力没恢复过来', 0, 'bad');
+  if (bunk) line('八个人一间的床位，睡不踏实', 0, 'bad');
 
   s.day += 1;
   s.minutes = 0;
-  s.worked = 0;
+  s.today = { ...HOURS(), repairs: 0, worked: 0 };
+  s.month.days += 1;
 
-  // 交租日
-  if ((s.day - 1) % RULES.rentEvery === 0) {
-    const rent = rentNow(s);
-    const paid = Math.min(rent, s.money);
-    spend(s, paid, 'rent');
-    if (paid < rent) {
-      const owed = Math.ceil((rent - paid) * (1 + RULES.lateRentPenalty));
-      s.debt += owed;
-      line(`房租 ${rent}，钱不够，差的部分加两成记在账上`, -paid, 'bad');
-      line('新增欠款', owed, 'debt');
-    } else line('交房租', -rent, 'bad');
-    report.review = review(s);
-    s.reviews += 1;
-    s.period = { ...LEDGER(), moodSum: 0, days: 0, lazyDays: 0 };
-    s.index = Math.round(s.index * (1 + RULES.inflation) * 1000) / 1000;
-    line(`物价又涨了，现在房租是 ${rentNow(s)}`, 0, 'event');
+  // 生病：越累越容易中招
+  const k = RULES.sick;
+  const chance = worked >= 10 ? k.overwork : worked >= 8 && exhausted ? k.tired : k.base;
+  if (rand() < chance) {
+    report.sick = true;
+    s.energy = Math.min(s.energy, k.energyCap);
+    s.sanity = clamp(s.sanity - k.sanity);
+    const fromCash = Math.min(s.cash, k.fee);
+    s.cash -= fromCash;
+    record(s, k.fee, 'medical');
+    line('累出病来了，去了趟医院', -k.fee, 'bad');
+    if (fromCash < k.fee) {
+      s.debt += k.fee - fromCash;
+      line('手里的钱不够，剩下的只能用闪电贷垫上', k.fee - fromCash, 'debt');
+    }
   }
 
-  // 欠太多：搬走最值钱的设备抵债
-  if (s.debt > RULES.debtCap && s.assets.length > 0) {
-    const best = s.assets.reduce((a, b) => (ASSETS[b].cost > ASSETS[a].cost ? b : a));
-    s.assets.splice(s.assets.indexOf(best), 1);
-    s.debt = Math.max(0, s.debt - ASSETS[best].cost);
-    report.seized = best;
-    line(`欠得太多，金老板的人搬走了你的${ASSETS[best].name}`, 0, 'bad');
+  if ((s.day - 1) % RULES.monthDays === 0) {
+    report.bill = bill(s);
+    if (report.bill.won) report.won = true;
   }
-
-  if (!s.free && s.debt === 0 && passiveIncome(s) >= livingCost(s)) {
-    s.free = true;
-    s.freeDay = s.day;
-    report.freed = true;
-  }
-
-  s.history.push({ day: s.day, money: s.money, debt: s.debt, passive: passiveIncome(s), cost: livingCost(s), mood: s.mood });
-  if (s.history.length > 120) s.history.shift();
   return report;
 }
 
-/* ---------- 生活评语 ---------- */
+// 账单日：被动收入进账，房租和各种分期扣款，生成这个月的两张表。
+function bill(s) {
+  const ended = monthOf(s) - 1;
+  const notes = [];
 
-export const VERDICTS = {
-  free: {
-    title: '财富自由',
-    text: '设备每天自己赚的钱，已经够你吃住。干不干活，从今往后是你说了算。',
-    real: '现实里这叫被动收入覆盖了生活开支。它不等于有很多钱，而是不必再为钱出卖时间。',
-  },
-  debt: {
-    title: '负债青年',
-    text: '欠金老板的钱在利滚利，你赚的有一部分是在替他打工。',
-    real: '现实里是网贷、分期和信用卡循环利息：借的时候轻松，利息一天也不休息。先把欠款还掉，比什么投资都划算。',
-  },
-  landlord: {
-    title: '在路上的包租公',
-    text: '你的收入里已经有不小的一块是设备自己赚来的。',
-    real: '现实里这是在积累能产生收入的资产。继续把余钱换成它们，工资就会慢慢变成可有可无。',
-  },
-  flat: {
-    title: '躺平大师',
-    text: '赚得不多，花得也不多，心情却很好。只要房租交得上，这也是一种活法。',
-    real: '现实里这是低欲望生活：开支压得够低，需要的收入也就少。风险在于一点积蓄都没有时，一次意外就会打破平衡。',
-  },
-  spender: {
-    title: '月光族',
-    text: '这几天赚的钱基本都喝掉、玩掉了，到交租的时候手里没剩什么。',
-    real: '现实里是收入一涨、消费跟着涨。享受没有错，但先留下一部分再花，和花剩了再存，结果差得很远。',
-  },
-  grinder: {
-    title: '卷王',
-    text: '你赚了不少，可心情一直很差。心情差的时候，干什么都更费力气。',
-    real: '现实里这是只顾挣钱、不顾自己：效率会下降，最后往往用一次报复性消费还回去。给娱乐留一笔预算是合理的开支。',
-  },
-  worker: {
-    title: '稳稳的打工人',
-    text: '收支大致平衡，靠的主要是自己动手赚来的钱。',
-    real: '现实里是靠工资生活：稳定，但一停工就没有进账。可以开始把余钱换成能自己赚钱的东西。',
-  },
-};
+  // 骗局：第一个月按时“分红”，第二个月人去楼空
+  let scamPayout = 0;
+  let scamLost = 0;
+  if (s.scam) {
+    if (s.scam.age === 0) {
+      scamPayout = Math.round(s.scam.amount * RULES.scam.rate);
+      s.scam.age = 1;
+      earn(s, scamPayout, 'scam');
+      notes.push({ text: `稳盈宝的“分红”到账了，一分不少`, tone: 'good' });
+    } else {
+      scamLost = s.scam.amount;
+      s.scam = null;
+      s.scamGone = true;
+      notes.push({ text: `稳盈宝的群解散了，那位导师再也联系不上。本金 ${scamLost} 没了`, tone: 'bad' });
+    }
+  }
 
-export function review(s) {
-  const p = s.period;
-  const income = p.wage + p.sales + p.passive;
-  const moodAvg = p.days ? p.moodSum / p.days : s.mood;
-  const cost = livingCost(s) * Math.max(1, p.days);
-  let key = 'worker';
-  if (s.free || (s.debt === 0 && passiveIncome(s) >= livingCost(s))) key = 'free';
-  else if (s.debt > 120) key = 'debt';
-  else if (income > 0 && p.passive / income >= 0.4) key = 'landlord';
-  else if (income > 0 && p.fun / income >= 0.3 && s.money < rentNow(s)) key = 'spender';
-  else if (income < cost * 0.9 && moodAvg >= 55) key = 'flat';
-  else if (moodAvg < 35 && income >= cost) key = 'grinder';
-  return {
-    key,
-    ...VERDICTS[key],
-    income: { wage: p.wage, sales: p.sales, passive: p.passive },
-    spent: { rent: p.rent, food: p.food, fun: p.fun, biz: p.biz, invest: p.invest, interest: p.interest, other: p.other },
-    moodAvg: Math.round(moodAvg),
-    days: p.days,
-    money: s.money,
+  const passive = passiveIncome(s);
+  if (passive > 0) earn(s, passive, 'passive');
+
+  const fixed = fixedCosts(s);
+  s.debt += fixed.interest;
+  record(s, fixed.interest, 'interest');
+  record(s, fixed.rent, 'rent');
+  record(s, fixed.installments, 'installments');
+  record(s, fixed.upkeep, 'upkeep');
+
+  const due = fixed.rent + fixed.installments + fixed.upkeep;
+  let borrowed = 0;
+  let bankrupt = false;
+  if (s.cash >= due) s.cash -= due;
+  else {
+    const short = due - s.cash;
+    s.cash = 0;
+    s.debt += short;
+    borrowed = short;
+    if (s.debt > loanLimit(s)) {
+      bankrupt = true;
+      s.credit = Math.max(0, s.credit - 25);
+      if (s.phone.owned) notes.push({ text: '分期的手机被收走了', tone: 'bad' });
+      if (s.ebike.owned) notes.push({ text: '电动车被拖走了', tone: 'bad' });
+      s.phone = { owned: false, left: 0 };
+      s.ebike = { owned: false, left: 0 };
+      if (s.home === 'room') {
+        s.home = 'bunk';
+        notes.push({ text: '房东换了锁。你拎着一个包，搬进了巷子里的床位房', tone: 'bad' });
+      }
+    }
+  }
+  if (!bankrupt) {
+    if (s.phone.left > 0) s.phone.left -= 1;
+    if (s.ebike.left > 0) s.ebike.left -= 1;
+    s.credit = Math.max(0, Math.min(100, s.credit + (borrowed ? -2 : 3)));
+  }
+
+  const m = s.month;
+  const outflow = due + fixed.interest + m.spend.food;
+  const covered = passive >= outflow && s.debt === 0;
+  s.streak = covered ? s.streak + 1 : 0;
+  const won = !s.won && s.streak >= RULES.winStreak;
+  if (won) s.won = true;
+
+  const income = { ...m.income };
+  const spend = { ...m.spend };
+  const totalIn = income.wage + income.repair + income.passive + income.scam;
+  const totalOut = spend.rent + spend.installments + spend.upkeep + spend.interest + spend.food + spend.fun + spend.study + spend.medical;
+  const statement = {
+    month: ended,
+    income,
+    spend,
+    totalIn,
+    totalOut,
+    net: totalIn - totalOut,
+    invested: spend.invest,
+    hours: { ...m.hours },
+    days: m.days,
+    passive,
+    outflow,
+    covered,
+    streak: s.streak,
+    borrowed,
+    bankrupt,
+    scamLost,
+    won,
+    notes,
+    sheet: balanceSheet(s),
+    cash: s.cash,
     debt: s.debt,
-    worth: netWorth(s),
-    passive: passiveIncome(s),
-    cost: livingCost(s),
   };
+
+  // 涨租通知：这个月开始生效
+  if (ended + 1 === RULES.rentHikeMonth && s.rent === RULES.rent) {
+    s.rent = Math.round(RULES.rent * (1 + RULES.rentHike));
+    statement.notes.push({ text: `房东发来消息：从这个月起房租涨到 ${s.rent}`, tone: 'event' });
+  }
+
+  s.statements.push(statement);
+  if (s.statements.length > 12) s.statements.shift();
+  s.month = MONTH();
+  return statement;
 }

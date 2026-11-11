@@ -913,65 +913,10 @@ svg {
   font-size: 13px;
 }
 
-.bar {
+.keyhint {
   position: absolute;
   left: 50%;
-  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-  transform: translateX(-50%);
-  display: flex;
-  gap: 3px;
-  padding: 4px;
-  max-width: calc(100% - 16px);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--wall) 82%, transparent);
-  border: 2px solid color-mix(in srgb, var(--ink) 18%, transparent);
-}
-
-.slot {
-  position: relative;
-  flex: 0 1 46px;
-  min-width: 0;
-  aspect-ratio: 1;
-  width: 46px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--ink) 9%, transparent);
-  border: 2px solid transparent;
-}
-
-.slot.on {
-  border-color: var(--lamp);
-  background: color-mix(in srgb, var(--lamp) 22%, transparent);
-}
-
-.slot img {
-  position: absolute;
-  inset: 12%;
-  width: 76%;
-  height: 76%;
-  image-rendering: pixelated;
-}
-
-.slot kbd {
-  position: absolute;
-  top: 1px;
-  left: 3px;
-  font: 500 9px/1.2 var(--font-body);
-  color: var(--muted);
-}
-
-.slot b {
-  position: absolute;
-  right: 3px;
-  bottom: 1px;
-  font: 700 11px/1.2 var(--font-body);
-  font-variant-numeric: tabular-nums;
-  text-shadow: 0 1px 0 var(--wall), 1px 0 0 var(--wall), -1px 0 0 var(--wall);
-}
-
-.hint {
-  position: absolute;
-  left: 50%;
-  bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(22px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
   padding: 4px 12px;
   border-radius: 99px;
@@ -981,7 +926,7 @@ svg {
   pointer-events: none;
 }
 
-.hint::before {
+.keyhint::before {
   content: '空格 ';
   color: var(--lamp);
   font-weight: 700;
@@ -990,7 +935,7 @@ svg {
 .act {
   position: absolute;
   right: max(12px, env(safe-area-inset-right, 0px));
-  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   min-width: 88px;
   min-height: 60px;
   padding: 8px 14px;
@@ -1017,13 +962,10 @@ svg {
 }
 
 @media (hover: none), (pointer: coarse) {
-  .hint {
+  .keyhint {
     display: none;
   }
 
-  .slot kbd {
-    display: none;
-  }
 }
 
 .tabs,
@@ -1075,4 +1017,210 @@ svg {
 
 .review .tally div {
   padding-block: 4px;
+}
+
+/* ---------- 这一版新增 ---------- */
+
+#view {
+  transition: filter 1.2s;
+}
+
+.masthead h1 span {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.36em;
+  letter-spacing: 0.3em;
+  color: var(--lamp);
+}
+
+.pantry {
+  color: var(--muted);
+}
+
+
+.hint.got {
+  color: var(--grow);
+  padding: 8px 10px;
+  border: 1px dashed color-mix(in srgb, var(--grow) 50%, var(--line));
+  border-radius: 8px;
+}
+
+.pass {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--wall) 90%, transparent);
+  animation: fade 0.25s;
+  text-align: center;
+}
+
+.pass-title {
+  font-size: 16px;
+  color: var(--muted);
+}
+
+.pass-time {
+  font: 400 44px/1.3 var(--font-display);
+  letter-spacing: 0.04em;
+}
+
+.pass-sum {
+  color: var(--lamp);
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet h4,
+.dialog h4 {
+  font: 500 12px/1.3 var(--font-body);
+  letter-spacing: 0.16em;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+.two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.flows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.flows li {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+
+.flows li.none {
+  color: var(--muted);
+  background: none;
+  border: 1px dashed var(--line);
+}
+
+.flows small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.flows b {
+  font-variant-numeric: tabular-nums;
+}
+
+.hours {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hbar {
+  display: flex;
+  height: 16px;
+  border-radius: 4px;
+  overflow: hidden;
+  gap: 1px;
+}
+
+.hours ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.hours li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.hours li i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+.hours b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.h-work {
+  background: var(--burn);
+}
+
+.h-study {
+  background: var(--frost);
+}
+
+.h-rest {
+  background: var(--grow);
+}
+
+.h-fun {
+  background: var(--owe);
+}
+
+.h-chores {
+  background: var(--lamp);
+}
+
+.h-other {
+  background: color-mix(in srgb, var(--ink) 28%, transparent);
+}
+
+.progress {
+  height: 10px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+  overflow: hidden;
+}
+
+.progress div {
+  height: 100%;
+  background: var(--frost);
+}
+
+.truth {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: var(--r);
+  border: 1px solid color-mix(in srgb, var(--burn) 50%, var(--line));
+  background: color-mix(in srgb, var(--burn) 8%, var(--panel));
+  font-size: 14px;
+}
+
+.review h3.pos {
+  color: var(--grow);
+}
+
+.review h3.neg,
+.review.bust h3 {
+  color: var(--burn);
+}
+
+.thumb.tall {
+  width: 32px;
+  height: 60px;
+}
+
+.morning {
+  max-width: 560px;
+}
+
+.say + .say {
+  margin-top: -4px;
 }

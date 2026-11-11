@@ -13,7 +13,7 @@ const js = execFileSync(
 );
 const css = readFileSync(join(here, 'src/ui/styles.css'), 'utf8');
 
-const html = `<title>末日躺平指南</title>
+const html = `<title>躺平计划</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=ZCOOL+QingKe+HuangYou&display=swap">
 <style>

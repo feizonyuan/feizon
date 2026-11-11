@@ -2,249 +2,324 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   RULES,
-  ITEMS,
-  ASSETS,
   newState,
-  price,
-  rentNow,
-  passiveIncome,
-  livingCost,
-  daysToRent,
-  addItem,
-  takeItem,
-  count,
-  useEnergy,
-  eat,
-  buy,
-  sell,
-  buyAsset,
-  buyLuxury,
+  monthOf,
+  daysToBill,
+  hoursLeft,
+  skilled,
+  loanLimit,
+  work,
+  repairJob,
+  study,
+  buyBento,
+  buyGroceries,
+  cook,
+  buyTea,
+  sitBench,
+  fishWithChen,
+  lesson,
+  buyVending,
+  sellVending,
+  takePhone,
+  takeEbike,
   borrow,
   repay,
-  doJob,
-  cropStage,
-  till,
-  water,
-  plant,
-  harvest,
+  scamVisible,
+  investScam,
+  moveBack,
+  passiveIncome,
+  fixedCosts,
+  balanceSheet,
   endDay,
-  review,
 } from '../src/game/state.js';
+import { WAYS, live } from '../scripts/simulate.js';
 
 const fresh = (patch = {}) => Object.assign(newState(1), patch);
-const days = (s, n) => {
-  let last;
-  for (let i = 0; i < n; i++) last = endDay(s);
-  return last;
+const never = () => 0.999; // 不生病
+const always = () => 0; // 一定生病
+const month = (s, rand = never) => {
+  let report;
+  do report = endDay(s, rand);
+  while (!report.bill);
+  return report.bill;
 };
 
-test('开局带着工具、种子和罐头', () => {
+test('开局：300 块，心力很低，五天后交 400 房租', () => {
   const s = fresh();
-  assert.deepEqual(
-    s.inv.filter(Boolean).map((x) => x.id),
-    ['hoe', 'can', 'rod', 'seedCabbage', 'tin'],
-  );
-  assert.equal(s.money, RULES.startMoney);
+  assert.equal(s.cash, 300);
+  assert.equal(s.sanity, 40);
+  assert.equal(daysToBill(s), 5);
+  assert.equal(fixedCosts(s).total, 400);
+  assert.equal(hoursLeft(s), 16);
 });
 
-test('背包：同类叠在一起，满了放不进，工具拿不走', () => {
+test('打工：换来工钱，花掉时间、体力和心力，做多久都是这个价', () => {
   const s = fresh();
-  assert.ok(addItem(s, 'tin', 3));
-  assert.equal(count(s, 'tin'), 5);
-  for (const id of ['scrap', 'battery', 'berry', 'mushroom', 'fish']) assert.ok(addItem(s, id));
-  assert.equal(addItem(s, 'potato'), false);
-  assert.equal(takeItem(s, 0), false);
-  assert.ok(takeItem(s, 4, 5));
-  assert.equal(s.inv[4], null);
+  assert.equal(work(s), null);
+  assert.equal(s.cash, 360);
+  assert.equal(s.minutes, 240);
+  assert.equal(s.energy, 70);
+  assert.equal(s.sanity, 28);
+  assert.equal(s.month.hours.work, 4);
+  assert.equal(s.month.income.wage, 60);
+  assert.equal(work(fresh({ energy: 20 })), '你累得站不住了，干不动。');
+  assert.equal(work(fresh({ minutes: 12 * 60 })), '这个点排不上班了，明天再来。');
 });
 
-test('种地：翻地、播种、浇了水才长、成熟后收获', () => {
-  const s = fresh();
-  assert.equal(till(s, '1,1'), null);
-  assert.equal(till(s, '1,1'), '这里已经翻过了');
-  assert.equal(plant(s, '1,1', 3), null);
-  assert.equal(count(s, 'seedCabbage'), 3);
-  endDay(s); // 没浇水
-  assert.equal(s.soil['1,1'].age, 0);
-  for (let i = 0; i < 2; i++) {
-    assert.equal(water(s, '1,1'), null);
-    assert.equal(water(s, '1,1'), '已经浇过了');
-    endDay(s);
+test('吃饭：便当省时间，自己做饭省钱还回一点心力', () => {
+  const a = fresh({ fullness: 0 });
+  assert.equal(buyBento(a), null);
+  assert.equal(a.cash, 285);
+  assert.equal(a.minutes, 30);
+  const b = fresh({ fullness: 0 });
+  assert.equal(cook(b), '没有食材了。便利店有卖。');
+  buyGroceries(b, 4);
+  assert.equal(b.cash, 280);
+  assert.equal(cook(b), null);
+  assert.equal(b.groceries, 3);
+  assert.equal(b.minutes, 60);
+  assert.equal(b.fullness, 50);
+  assert.equal(b.sanity, 44);
+  assert.equal(b.month.spend.food, 20);
+  assert.equal(buyBento(fresh({ fullness: 100 })), '你现在不饿。');
+});
+
+test('回心力：奶茶快但花钱，长椅慢但不要钱', () => {
+  const a = fresh();
+  buyTea(a);
+  assert.equal(a.sanity, 65);
+  assert.equal(a.cash, 282);
+  assert.equal(a.month.spend.fun, 18);
+  const b = fresh();
+  sitBench(b);
+  assert.equal(b.sanity, 50);
+  assert.equal(b.cash, 300);
+  assert.equal(b.month.hours.rest, 1);
+});
+
+test('夜校：心力太低学不进去；八节课后能接维修单', () => {
+  assert.match(study(fresh({ sanity: 20 })), /看不进去/);
+  const s = fresh({ cash: 1000, sanity: 100 });
+  for (let i = 0; i < 8; i++) {
+    assert.equal(study(s), null, `第 ${i + 1} 节`);
+    s.minutes = 0;
+    s.energy = 100;
+    s.sanity = 100;
   }
-  assert.equal(cropStage(s.soil['1,1']), 3);
-  assert.deepEqual(harvest(s, '1,1'), { id: 'cabbage' });
-  assert.equal(s.soil['1,1'].crop, null);
-  assert.equal(harvest(s, '1,1'), null);
+  assert.ok(skilled(s));
+  assert.equal(s.total.spend.study, 240);
+  assert.equal(study(s), '这门课你已经学完了。');
+  assert.equal(repairJob(fresh()), '你还不会修。');
+  assert.equal(repairJob(s), null);
+  assert.equal(s.month.income.repair, 80);
+  repairJob(s);
+  repairJob(s);
+  assert.equal(repairJob(s), '今天的单子接完了。');
 });
 
-test('番茄收过之后还会再结', () => {
+test('老陈：一天一课，第一课给账本，第三课之后能一起钓鱼', () => {
   const s = fresh();
-  addItem(s, 'seedTomato');
-  till(s, '2,2');
-  plant(s, '2,2', s.inv.findIndex((x) => x?.id === 'seedTomato'));
-  for (let i = 0; i < 4; i++) {
-    water(s, '2,2');
-    endDay(s);
+  assert.match(fishWithChen(s), /鱼竿/);
+  assert.deepEqual(lesson(s), { index: 1 });
+  assert.ok(s.ledger);
+  assert.equal(s.iq, 1);
+  assert.deepEqual(lesson(s), { wait: true });
+  for (let i = 2; i <= 6; i++) {
+    endDay(s, never);
+    assert.deepEqual(lesson(s), { index: i });
   }
-  assert.deepEqual(harvest(s, '2,2'), { id: 'tomato' });
-  assert.equal(s.soil['2,2'].crop, 'tomato');
-  assert.equal(cropStage(s.soil['2,2']), 1);
-  for (let i = 0; i < 2; i++) {
-    water(s, '2,2');
-    endDay(s);
-  }
-  assert.equal(cropStage(s.soil['2,2']), 3);
+  endDay(s, never);
+  assert.deepEqual(lesson(s), { done: true });
+  assert.equal(fishWithChen(s), null);
 });
 
-test('体力不够时干不了活；心情差时更费体力', () => {
-  const s = fresh({ energy: 2 });
-  assert.equal(till(s, '1,1'), '没力气了');
-  const low = fresh({ mood: 10 });
-  useEnergy(low, 10);
-  assert.equal(low.energy, 85);
+test('售货机：买的钱不算花掉，账单日自己进账', () => {
+  const s = fresh({ cash: 1300 });
+  assert.equal(buyVending(s), null);
+  assert.equal(buyVending(s), null);
+  assert.equal(buyVending(s), '钱不够。');
+  assert.equal(passiveIncome(s), 220);
+  const b = month(s);
+  assert.equal(b.income.passive, 220);
+  assert.equal(b.invested, 1200);
+  assert.equal(b.totalOut, 400);
+  assert.equal(s.cash, 0, '100 + 220 不够交 400 的房租');
+  assert.equal(s.debt, 80);
+  assert.deepEqual(balanceSheet(s).assets[0], { name: '自动售货机 ×2', value: 600, flow: 220 });
+  assert.equal(sellVending(s), null);
+  assert.equal(s.machines, 1);
 });
 
-test('吃东西回饱食和体力；吃饱了不浪费', () => {
-  const s = fresh({ food: 20, energy: 50 });
-  assert.equal(eat(s, 4).item, ITEMS.tin);
-  assert.equal(s.food, 60);
-  assert.ok(s.energy > 50);
-  assert.equal(count(s, 'tin'), 1);
-  s.food = 100;
-  assert.deepEqual(eat(s, 4), { full: true });
-  assert.equal(count(s, 'tin'), 1);
-  assert.equal(eat(s, 0), null);
+test('分期手机和电动车：到手时有好处，之后每个账单日扣钱', () => {
+  const s = fresh({ cash: 2000 });
+  takePhone(s);
+  takeEbike(s);
+  assert.equal(s.sanity, 70);
+  assert.equal(s.cash, 2000);
+  assert.deepEqual(fixedCosts(s), { rent: 400, installments: 240, upkeep: 20, interest: 0, total: 660 });
+  const b = month(s);
+  assert.equal(b.spend.installments, 240);
+  assert.equal(s.phone.left, 5);
+  assert.equal(s.ebike.left, 7);
+  const flows = balanceSheet(s).liabilities.map((l) => l.flow);
+  assert.deepEqual(flows, [-90, -170]);
+  for (let i = 0; i < 8; i++) month(Object.assign(s, { cash: 3000 }));
+  assert.equal(fixedCosts(s).installments, 0);
+  assert.equal(fixedCosts(s).upkeep, 20, '车贷还完了，充电保养还要一直付');
 });
 
-test('买卖按物价指数计价，并记进账本', () => {
-  const s = fresh({ money: 100 });
-  assert.equal(buy(s, 'seedPotato'), null);
-  assert.equal(s.money, 91);
-  assert.equal(s.period.biz, 9);
-  addItem(s, 'fish', 3);
-  const slot = s.inv.findIndex((x) => x?.id === 'fish');
-  assert.equal(sell(s, slot), 16);
-  assert.equal(sell(s, slot, true), 32);
-  assert.equal(s.period.sales, 48);
-  assert.equal(buy(fresh({ money: 1 }), 'tin'), '钱不够');
-  s.index = 1.5;
-  assert.equal(price(s, 10), 15);
+test('账单日钱不够：自动借闪电贷，信用下降', () => {
+  const s = fresh({ cash: 250 });
+  const b = month(s);
+  assert.equal(b.borrowed, 150);
+  assert.equal(b.bankrupt, false);
+  assert.equal(s.cash, 0);
+  assert.equal(s.debt, 150);
+  assert.equal(s.credit, 58);
+  const next = month(Object.assign(s, { cash: 1000 }));
+  assert.equal(next.spend.interest, 15);
+  assert.equal(s.debt, 165);
 });
 
-test('搬砖：一天一次，花体力和时间，挣工资', () => {
-  const s = fresh();
-  assert.equal(doJob(s), null);
-  assert.equal(s.money, RULES.startMoney + RULES.job.pay);
-  assert.equal(s.minutes, RULES.job.hours * 60);
-  assert.equal(s.period.wage, RULES.job.pay);
-  assert.equal(doJob(s), '今天的活已经干完了');
-  endDay(s);
-  assert.equal(doJob(fresh({ minutes: 15 * 60 })), '太晚了，明天再来');
-  assert.equal(doJob(fresh({ energy: 10 })), '你累得搬不动了');
+test('按时付账信用上涨，额度跟着涨', () => {
+  const s = fresh({ cash: 1000 });
+  assert.equal(loanLimit(s), 480);
+  month(s);
+  assert.equal(s.credit, 63);
+  assert.equal(loanLimit(s), 504);
+  assert.equal(borrow(s, 600), '额度不够。');
+  assert.equal(borrow(s, 200), null);
+  assert.equal(repay(s, 999), 200);
 });
 
-test('设备每天早上自动进账', () => {
-  const s = fresh({ money: 500 });
-  assert.equal(buyAsset(s, 'rain', 4), null);
-  assert.equal(buyAsset(s, 'coop', 4), null);
-  assert.equal(passiveIncome(s), 24);
-  const before = s.money;
-  const report = endDay(s);
-  assert.equal(s.money, before + 24);
-  assert.equal(s.period.passive, 24);
-  assert.ok(report.lines.some((l) => l.delta === 24));
-  assert.equal(buyAsset(s, 'vending', 4), '钱不够');
-  assert.equal(buyAsset(fresh({ money: 999, assets: ['rain'] }), 'rain', 1), '院子里没有空位了');
+test('借也借不到：搬去床位，分期的东西被收走，但日子继续', () => {
+  const s = fresh({ cash: 0, debt: 400 });
+  takePhone(s);
+  takeEbike(s);
+  const b = month(s);
+  assert.ok(b.bankrupt);
+  assert.equal(s.home, 'bunk');
+  assert.equal(s.phone.owned, false);
+  assert.equal(s.ebike.owned, false);
+  assert.equal(fixedCosts(s).rent, RULES.bunkRent);
+  s.fullness = 100;
+  endDay(s, never);
+  assert.equal(s.energy, 80, '床位睡不好');
+  assert.match(moveBack(s), /押金/);
+  s.cash = 500;
+  assert.equal(moveBack(s), null);
+  assert.equal(s.home, 'room');
+  assert.equal(s.cash, 200);
 });
 
-test('游戏机和电动车买了之后每天都要花钱', () => {
-  const s = fresh({ money: 400 });
-  const base = livingCost(s);
-  assert.equal(buyLuxury(s, 'console'), null);
-  assert.equal(buyLuxury(s, 'console'), '已经有了');
-  assert.equal(livingCost(s), base + 3);
-  const before = s.money;
-  endDay(s);
-  assert.equal(s.money, before - 3);
+test('生病：没有闲钱就只能借', () => {
+  const rich = fresh({ cash: 1000 });
+  const a = endDay(rich, always);
+  assert.ok(a.sick);
+  assert.equal(rich.cash, 740);
+  assert.equal(rich.energy, 50);
+  const poor = fresh({ cash: 100 });
+  endDay(poor, always);
+  assert.equal(poor.cash, 0);
+  assert.equal(poor.debt, 160);
+  assert.equal(poor.month.spend.medical, 260);
 });
 
-test('每五天交一次租，之后物价上涨', () => {
-  const s = fresh({ money: 200 });
-  assert.equal(daysToRent(s), 5);
-  const report = days(s, 5);
-  assert.equal(s.day, 6);
-  assert.equal(s.money, 140);
-  assert.ok(report.review);
-  assert.equal(s.index, 1.04);
-  assert.equal(rentNow(s), 62);
-  assert.equal(daysToRent(s), 5);
-  assert.equal(s.period.rent, 0, '新周期的账本从零开始');
-  assert.equal(s.total.rent, 60);
-});
-
-test('交不起租：差的部分加两成变成欠款', () => {
-  const s = fresh({ money: 10 });
-  days(s, 5);
-  assert.equal(s.money, 0);
-  assert.equal(s.debt, Math.ceil(50 * 1.2));
-});
-
-test('欠款每天利滚利，有借款上限', () => {
-  const s = fresh();
-  assert.equal(borrow(s, 100), null);
-  assert.equal(s.money, RULES.startMoney + 100);
-  endDay(s);
-  assert.equal(s.debt, 105);
-  endDay(s);
-  assert.equal(s.debt, 111);
-  assert.equal(borrow(s, 250), '他不肯再借了');
-  assert.equal(repay(s, 500), 111);
-  assert.equal(s.debt, 0);
-  assert.equal(s.money, RULES.startMoney + 100 - 111);
-});
-
-test('欠得太多，最值钱的设备被搬走', () => {
-  const s = fresh({ debt: 460, assets: ['rain', 'solar'] });
-  const report = endDay(s);
-  assert.equal(report.seized, 'solar');
-  assert.deepEqual(s.assets, ['rain']);
-  assert.equal(s.debt, Math.ceil(460 * 1.05) - ASSETS.solar.cost);
-});
-
-test('饿着睡或熬夜倒下，第二天体力不满', () => {
-  const fed = fresh({ food: 80 });
-  endDay(fed);
-  assert.equal(fed.energy, 100);
-  assert.equal(fed.food, 80 - RULES.foodPerDay);
-  const hungry = fresh({ food: 10 });
-  endDay(hungry);
-  assert.equal(hungry.energy, 60);
-  const out = fresh({ food: 80 });
-  endDay(out, true);
-  assert.equal(out.energy, 50);
-});
-
-test('被动收入盖过每天的开销且不欠债，就是财富自由', () => {
-  const s = fresh({ money: 50, assets: ['solar'] });
-  assert.ok(passiveIncome(s) >= livingCost(s));
-  assert.equal(endDay(s).freed, true);
-  assert.equal(s.free, true);
-  assert.equal(endDay(s).freed, false, '只庆祝一次');
-  const owing = fresh({ assets: ['solar'], debt: 50 });
-  assert.equal(endDay(owing).freed, false);
-});
-
-test('生活评语', () => {
-  const verdict = (patch, period = {}) => {
-    const s = fresh(patch);
-    Object.assign(s.period, { days: 5, moodSum: 5 * (patch.mood ?? 60) }, period);
-    return review(s).key;
+test('连着干三班，第二天更容易病', () => {
+  const sickAfter = (shifts) => {
+    let n = 0;
+    for (let seed = 0; seed < 400; seed++) {
+      const s = fresh();
+      for (let i = 0; i < shifts; i++) work(s);
+      let k = seed;
+      if (endDay(s, () => ((k = (k * 9301 + 49297) % 233280), k / 233280)).sick) n += 1;
+    }
+    return n / 400;
   };
-  assert.equal(verdict({ assets: ['solar'] }), 'free');
-  assert.equal(verdict({ debt: 200 }), 'debt');
-  assert.equal(verdict({ assets: ['rain'], money: 300 }, { passive: 40, wage: 50 }), 'landlord');
-  assert.equal(verdict({ money: 10 }, { wage: 200, fun: 90 }), 'spender');
-  assert.equal(verdict({ money: 100, mood: 80 }, { sales: 40 }), 'flat');
-  assert.equal(verdict({ money: 300, mood: 20 }, { wage: 170, sales: 100 }), 'grinder');
-  assert.equal(verdict({ money: 300, mood: 50 }, { wage: 170, sales: 100 }), 'worker');
+  assert.ok(sickAfter(3) > 0.25);
+  assert.ok(sickAfter(1) < 0.08);
+});
+
+test('饿着睡，体力恢复不过来', () => {
+  const s = fresh({ fullness: 10 });
+  endDay(s, never);
+  assert.equal(s.energy, 65);
+  const fed = fresh({ fullness: 80 });
+  endDay(fed, never);
+  assert.equal(fed.energy, 100);
+  assert.equal(fed.fullness, 30);
+});
+
+test('第三个月开始涨房租', () => {
+  const s = fresh({ cash: 5000 });
+  month(s);
+  assert.equal(s.rent, 400);
+  const b = month(s);
+  assert.equal(s.rent, 460);
+  assert.ok(b.notes.some((n) => n.text.includes('460')));
+  assert.equal(month(s).spend.rent, 460);
+});
+
+test('稳盈宝：第一个月准时分红，第二个月本金全没', () => {
+  const s = fresh({ cash: 3000 });
+  assert.equal(scamVisible(s), false, '第一个月不出现');
+  month(s);
+  assert.equal(scamVisible(s), true);
+  assert.equal(investScam(s, 500), null);
+  assert.equal(balanceSheet(s).assets[0].doubt, true);
+  const first = month(s);
+  assert.equal(first.income.scam, 150);
+  const second = month(s);
+  assert.equal(second.scamLost, 500);
+  assert.equal(s.scam, null);
+  assert.equal(scamVisible(s), false);
+  assert.equal(s.total.income.scam, 150);
+});
+
+test('被动收入连续三个月盖过不得不花的钱，并且不欠债，才算赎回时间', () => {
+  const s = fresh({ cash: 2000, machines: 5 });
+  assert.equal(month(s).covered, true);
+  assert.equal(month(s).won, false);
+  const third = month(s);
+  assert.equal(third.streak, 3);
+  assert.ok(third.won);
+  assert.ok(s.won);
+  assert.equal(month(s).won, false, '只宣布一次');
+  const owing = fresh({ cash: 2000, machines: 5, debt: 50 });
+  assert.equal(month(owing).covered, false);
+  const eating = fresh({ cash: 2000, machines: 4 });
+  for (let i = 0; i < 4; i++) buyBento(Object.assign(eating, { fullness: 0 }));
+  assert.equal(month(eating).covered, false, '吃饭的钱也算在里面');
+});
+
+test('账单里的时间分配按实际发生的记', () => {
+  const s = fresh();
+  work(s);
+  sitBench(s);
+  buyTea(s);
+  const b = month(s);
+  assert.deepEqual(b.hours, { work: 4, study: 0, rest: 1, fun: 0.5, chores: 0 });
+  assert.equal(b.days, 5);
+  assert.equal(monthOf(s), 2);
+});
+
+test('几种过法的结果符合设计意图', () => {
+  const avg = (name, months) => {
+    let cash = 0;
+    let won = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      const { rows } = live(WAYS[name], months, seed);
+      cash += rows.at(-1).cash - rows.at(-1).debt;
+      if (rows.some((r) => r.won)) won += 1;
+    }
+    return { cash: cash / 60, won: won / 60 };
+  };
+  const tea = avg('打两班工，吃便当，喝奶茶解压', 6);
+  const cookHome = avg('打两班工，自己做饭', 6);
+  const skilledWay = avg('做饭 + 下班去夜校，学成后接维修单', 6);
+  assert.ok(tea.cash < 450, `喝奶茶的攒不下钱：${tea.cash}`);
+  assert.ok(cookHome.cash > tea.cash + 300, '自己做饭能攒下一些');
+  assert.ok(skilledWay.cash > cookHome.cash + 800, '学了手艺攒得快得多');
+  assert.equal(tea.won, 0);
+  assert.ok(avg('做饭 + 夜校 + 攒钱买售货机', 12).won > 0.8);
 });

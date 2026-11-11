@@ -1,7 +1,8 @@
-// 全部像素画都用代码画出来，不依赖外部图片。
+// 全部像素画都用代码画出来，不依赖外部图片。题材：城市边缘的老街。
 export const T = 16;
 
 const INK = '#2b2437'; // 描边色：偏紫的深色，比纯黑柔和
+const FONT = '"Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif';
 
 const C = {
   grass: '#74b356',
@@ -9,10 +10,12 @@ const C = {
   grassL: '#8cc66a',
   path: '#d2b17a',
   pathD: '#b99861',
-  soil: '#a6744a',
-  soilD: '#8a5c38',
-  wet: '#6e4a31',
-  wetD: '#5a3b27',
+  pave: '#c2c5c1',
+  paveD: '#a9adaa',
+  paveL: '#d4d6d2',
+  road: '#5b5f6a',
+  roadD: '#4e525c',
+  roadL: '#6a6e79',
   water: '#4f9fd6',
   waterL: '#7cc0ea',
   waterD: '#3c85bd',
@@ -40,12 +43,21 @@ const C = {
   purpleD: '#4f416d',
   white: '#f3efe6',
   cream: '#e6dcc6',
+  creamD: '#cdbf9f',
   skin: '#f1c7a0',
   skinD: '#d9a67e',
-  rust: '#a5563a',
+  brick: '#b86a52',
+  brickD: '#98523f',
   green: '#5fae6b',
+  greenD: '#458a52',
+  orange: '#e98b3a',
   glass: '#a9dcef',
+  glassD: '#7fb9d2',
+  lit: '#f6dc8a',
   night: '#3b3550',
+  grey: '#8d8a94',
+  greyD: '#716e7a',
+  greyL: '#a9a6ae',
 };
 
 function canvas(w, h) {
@@ -71,8 +83,7 @@ function rng(seed) {
 function addOutline(c) {
   const ctx = c.getContext('2d');
   const { width: w, height: h } = c;
-  const img = ctx.getImageData(0, 0, w, h);
-  const src = img.data.slice();
+  const src = ctx.getImageData(0, 0, w, h).data.slice();
   const solid = (x, y) => x >= 0 && y >= 0 && x < w && y < h && src[(y * w + x) * 4 + 3] > 0;
   ctx.fillStyle = INK;
   for (let y = 0; y < h; y++) {
@@ -84,7 +95,8 @@ function addOutline(c) {
   return c;
 }
 
-// r(颜色, x, y, 宽, 高) 画矩形；e(颜色, 中心x, 中心y, 半径x, 半径y) 画实心椭圆。
+// r(颜色, x, y, 宽, 高) 画矩形；e(颜色, 中心x, 中心y, 半径x, 半径y) 画实心椭圆；
+// w(文字, 中心x, 基线y, 颜色, 字号) 写招牌上的字。
 function make(w, h, draw, outline = true) {
   const [c, ctx] = canvas(w, h);
   const r = (color, x, y, rw = 1, rh = 1) => {
@@ -101,8 +113,17 @@ function make(w, h, draw, outline = true) {
       ctx.fillRect(x0, y, Math.max(1, Math.round(cx + half) - x0), 1);
     }
   };
-  draw(r, e);
-  return outline ? addOutline(c) : c;
+  const texts = [];
+  const write = (text, cx, y, color, size = 10) => texts.push([text, cx, y, color, size]);
+  draw(r, e, write);
+  if (outline) addOutline(c);
+  for (const [text, cx, y, color, size] of texts) {
+    ctx.font = `bold ${size}px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = color;
+    ctx.fillText(text, cx, y);
+  }
+  return c;
 }
 
 function flip(src) {
@@ -113,29 +134,7 @@ function flip(src) {
   return c;
 }
 
-function dim(src, alpha = 0.45) {
-  const [c, ctx] = canvas(src.width, src.height);
-  ctx.globalAlpha = alpha;
-  ctx.drawImage(src, 0, 0);
-  return c;
-}
-
 /* ---------- 地面 ---------- */
-
-function speckled(seed, base, dots, count, long = false) {
-  return make(
-    T,
-    T,
-    (r) => {
-      const rnd = rng(seed);
-      r(base, 0, 0, T, T);
-      for (let i = 0; i < count; i++) {
-        r(dots[i % dots.length], Math.floor(rnd() * 15), Math.floor(rnd() * 15), long && rnd() > 0.5 ? 2 : 1, 1);
-      }
-    },
-    false,
-  );
-}
 
 function grassTile(seed) {
   return make(
@@ -166,15 +165,34 @@ function grassTile(seed) {
   );
 }
 
-function soilTile(wet) {
+function speckled(seed, base, dots, count) {
   return make(
     T,
     T,
     (r) => {
-      r(wet ? C.wet : C.soil, 0, 0, T, T);
-      for (let y = 2; y < T; y += 4) r(wet ? C.wetD : C.soilD, 1, y, 14, 1);
-      r(wet ? C.wetD : C.soilD, 0, 0, T, 1);
-      r(wet ? C.wetD : C.soilD, 0, 0, 1, T);
+      const rnd = rng(seed);
+      r(base, 0, 0, T, T);
+      for (let i = 0; i < count; i++) r(dots[i % dots.length], Math.floor(rnd() * 15), Math.floor(rnd() * 15), rnd() > 0.5 ? 2 : 1, 1);
+    },
+    false,
+  );
+}
+
+// 人行道：两块错缝的地砖
+function paveTile(seed) {
+  return make(
+    T,
+    T,
+    (r) => {
+      const rnd = rng(seed);
+      r(C.pave, 0, 0, T, T);
+      r(C.paveD, 0, 7, T, 1);
+      r(C.paveD, 0, 15, T, 1);
+      r(C.paveD, 7, 0, 1, 7);
+      r(C.paveD, 15, 8, 1, 7);
+      r(C.paveL, 1, 1, 5, 1);
+      r(C.paveL, 9, 9, 5, 1);
+      if (rnd() > 0.6) r(C.paveD, 2 + Math.floor(rnd() * 10), 3 + Math.floor(rnd() * 3), 2, 1);
     },
     false,
   );
@@ -196,24 +214,48 @@ function waterTile(frame) {
   );
 }
 
-function plankTile() {
-  return make(
-    T,
-    T,
-    (r) => {
-      r(C.wood, 0, 0, T, T);
-      r(C.woodD, 0, 7, T, 1);
-      r(C.woodD, 0, 15, T, 1);
-      r(C.woodD, 5, 0, 1, 7);
-      r(C.woodD, 11, 8, 1, 7);
-      r(C.woodL, 1, 2, 3, 1);
-      r(C.woodL, 7, 10, 3, 1);
-    },
-    false,
-  );
-}
+const plank = make(
+  T,
+  T,
+  (r) => {
+    r(C.wood, 0, 0, T, T);
+    r(C.woodD, 0, 7, T, 1);
+    r(C.woodD, 0, 15, T, 1);
+    r(C.woodD, 5, 0, 1, 7);
+    r(C.woodD, 11, 8, 1, 7);
+    r(C.woodL, 1, 2, 3, 1);
+    r(C.woodL, 7, 10, 3, 1);
+  },
+  false,
+);
 
-/* ---------- 植物和石头 ---------- */
+const roomWall = make(
+  T,
+  T,
+  (r) => {
+    r('#d9d2c0', 0, 0, T, T);
+    r('#c9c1ad', 0, 12, T, 4);
+    r('#c2b9a3', 3, 3, 3, 2);
+    r('#c2b9a3', 10, 7, 4, 1);
+    r(C.woodD, 0, 15, T, 1);
+  },
+  false,
+);
+
+const voidTile = make(
+  T,
+  T,
+  (r) => {
+    r('#2f2a3a', 0, 0, T, T);
+    r('#292433', 0, 7, T, 1);
+    r('#292433', 0, 15, T, 1);
+    r('#292433', 4, 0, 1, 7);
+    r('#292433', 12, 8, 1, 7);
+  },
+  false,
+);
+
+/* ---------- 植物和街上的小东西 ---------- */
 
 const tree = (seed) =>
   make(32, 48, (r, e) => {
@@ -230,319 +272,366 @@ const tree = (seed) =>
     for (let i = 0; i < 6; i++) r(C.leafL, 6 + rnd() * 18, 6 + rnd() * 18, 2, 1);
   });
 
-const deadTree = make(32, 48, (r) => {
-  r('#6d5a4c', 14, 16, 4, 30);
-  r('#57463a', 14, 16, 1, 30);
-  r('#6d5a4c', 8, 20, 6, 2);
-  r('#6d5a4c', 8, 14, 2, 7);
-  r('#6d5a4c', 18, 24, 7, 2);
-  r('#6d5a4c', 23, 16, 2, 9);
-  r('#6d5a4c', 15, 8, 2, 9);
-  r('#6d5a4c', 11, 44, 10, 2);
+const hedge = make(T, 18, (r, e) => {
+  e(C.leafD, 8, 11, 8, 6);
+  e(C.leaf, 8, 9, 7.5, 5);
+  r(C.leafL, 3, 6, 3, 1);
+  r(C.leafL, 9, 5, 3, 1);
+  r(C.leafD, 6, 11, 2, 1);
 });
 
-const bush = (berries) =>
-  make(T, T, (r, e) => {
-    e(C.leafD, 8, 10, 7, 5);
-    e(C.leaf, 8, 8, 6, 5);
-    e(C.leafL, 6, 6, 2, 1.5);
-    if (berries) {
-      [
-        [4, 9],
-        [9, 7],
-        [11, 11],
-        [7, 12],
-      ].forEach(([x, y]) => {
-        r('#c8405a', x, y, 2, 2);
-        r('#f08aa0', x, y, 1, 1);
-      });
+const flowerbed = make(T, 14, (r) => {
+  r(C.brickD, 0, 6, T, 8);
+  r(C.brick, 0, 6, T, 2);
+  r(C.leaf, 1, 3, 14, 4);
+  [
+    [2, 2, C.pink],
+    [6, 1, C.yellow],
+    [10, 2, C.white],
+    [13, 1, C.pink],
+  ].forEach(([x, y, c]) => r(c, x, y, 2, 2));
+});
+
+const bench = make(32, 18, (r) => {
+  r(C.woodL, 2, 2, 28, 3);
+  r(C.wood, 2, 6, 28, 2);
+  r(C.woodL, 1, 9, 30, 4);
+  r(C.woodD, 1, 12, 30, 1);
+  r(C.night, 4, 13, 2, 5);
+  r(C.night, 26, 13, 2, 5);
+  r(C.night, 3, 2, 2, 8);
+  r(C.night, 27, 2, 2, 8);
+});
+
+const lamp = make(T, 40, (r) => {
+  r(C.night, 7, 10, 2, 28);
+  r(C.night, 5, 37, 6, 2);
+  r(C.night, 2, 6, 12, 2);
+  r(C.night, 7, 2, 2, 5);
+  r(C.lit, 2, 8, 4, 3);
+  r(C.lit, 10, 8, 4, 3);
+});
+
+const bin = make(T, 18, (r) => {
+  r(C.greenD, 3, 4, 10, 13);
+  r(C.green, 4, 5, 8, 11);
+  r(C.night, 3, 2, 10, 3);
+  r(C.white, 6, 8, 4, 4);
+  r(C.greenD, 7, 9, 2, 2);
+});
+
+const hydrant = make(T, 16, (r) => {
+  r(C.red, 6, 4, 4, 11);
+  r(C.redD, 6, 12, 4, 3);
+  r(C.red, 5, 2, 6, 3);
+  r(C.red, 3, 7, 3, 3);
+  r(C.red, 10, 7, 3, 3);
+  r(C.white, 7, 6, 1, 2);
+});
+
+const busStop = make(T, 40, (r, e, w) => {
+  r(C.tinD, 7, 12, 2, 27);
+  r(C.night, 5, 37, 6, 2);
+  r(C.blue, 1, 1, 14, 12);
+  r(C.white, 2, 2, 12, 10);
+  r(C.blue, 3, 3, 10, 4);
+  w('站', 8, 12, C.blueD, 7);
+});
+
+// 街边的自动售货机：占一格，比人高
+const vending = (f) =>
+  make(T, 30, (r) => {
+    r(C.red, 1, 1, 14, 28);
+    r(C.redD, 1, 1, 2, 28);
+    r(C.night, 4, 3, 9, 13);
+    for (let y = 4; y < 15; y += 4) {
+      r(C.yellow, 5, y, 2, 3);
+      r(C.blue, 8, y, 2, 3);
+      r(C.green, 11, y, 1, 3);
     }
+    r(f ? C.lit : C.white, 12, 18, 2, 3);
+    r(C.night, 4, 22, 9, 4);
+    r(C.tinD, 5, 23, 7, 2);
   });
 
-const mushroom = make(T, T, (r, e) => {
-  r(C.cream, 7, 9, 3, 5);
-  e('#c96a4a', 8.5, 8, 5, 3);
-  r(C.white, 6, 6, 1, 1);
-  r(C.white, 10, 7, 1, 1);
-  r(C.cream, 3, 12, 2, 3);
-  e('#c96a4a', 4, 11.5, 2.5, 1.5);
-});
-
-const rock = make(T, T, (r, e) => {
-  e(C.stoneD, 8, 11, 6, 4);
-  e(C.stone, 8, 9, 5, 4);
-  r(C.stoneL, 5, 7, 3, 1);
-  r(C.stoneD, 9, 11, 3, 1);
-});
-
-const fence = make(T, T, (r) => {
-  r(C.woodL, 0, 6, T, 2);
-  r(C.woodL, 0, 11, T, 2);
-  r(C.wood, 3, 3, 3, 12);
-  r(C.wood, 11, 3, 3, 12);
-  r(C.woodD, 3, 13, 3, 2);
-  r(C.woodD, 11, 13, 3, 2);
-});
-
-/* ---------- 建筑 ---------- */
-
-function house(wall, wallD, roof, roofD, sign) {
-  return make(64, 60, (r) => {
-    // 屋顶
-    for (let i = 0; i < 22; i++) {
-      const inset = Math.max(0, 10 - i);
-      r(i % 4 === 3 ? roofD : roof, 2 + inset, 4 + i, 60 - inset * 2, 1);
-    }
-    r(roofD, 2, 26, 60, 2);
-    r(C.stoneD, 46, 2, 6, 8);
-    r(C.stone, 46, 2, 6, 2);
-    // 墙
-    r(wall, 5, 28, 54, 30);
-    for (let x = 9; x < 58; x += 5) r(wallD, x, 28, 1, 30);
-    r(wallD, 5, 56, 54, 2);
-    // 门
-    r(C.woodD, 26, 38, 12, 20);
-    r(C.wood, 28, 40, 8, 18);
-    r(C.yellow, 34, 49, 1, 2);
-    // 窗
-    for (const x of [10, 44]) {
-      r(C.woodD, x, 36, 11, 10);
-      r(C.glass, x + 1, 37, 9, 8);
-      r(C.white, x + 2, 38, 3, 2);
-      r(C.woodD, x + 5, 37, 1, 8);
-    }
-    if (sign) sign(r);
-  });
-}
-
-const shack = house(C.tin, C.tinD, C.rust, '#8a4530');
-const office = house(C.cream, '#cdbf9f', C.green, '#4a9057', (r) => {
-  r(C.woodD, 22, 30, 20, 7);
-  r(C.yellow, 24, 32, 16, 3);
-});
-
-const stall = make(48, 44, (r) => {
-  for (let x = 0; x < 48; x += 8) {
-    r(C.red, x, 2, 4, 12);
-    r(C.white, x + 4, 2, 4, 12);
-  }
-  r(C.redD, 0, 12, 48, 2);
-  r(C.woodD, 3, 14, 3, 14);
-  r(C.woodD, 42, 14, 3, 14);
-  r(C.wood, 1, 26, 46, 16);
-  r(C.woodL, 1, 26, 46, 3);
-  r(C.woodD, 1, 39, 46, 3);
-  // 货
-  r('#c8405a', 6, 20, 5, 6);
-  r(C.green, 13, 21, 5, 5);
-  r(C.yellow, 20, 20, 4, 6);
-  r(C.tin, 27, 19, 4, 7);
-  r(C.tinD, 27, 21, 4, 1);
-  r(C.blue, 34, 21, 6, 5);
-});
-
-const teaCart = make(32, 40, (r) => {
-  r(C.pink, 1, 2, 30, 8);
-  for (let x = 1; x < 31; x += 6) r(C.white, x, 2, 3, 8);
-  r(C.pinkD, 1, 9, 30, 2);
-  r(C.woodD, 3, 11, 2, 12);
-  r(C.woodD, 27, 11, 2, 12);
-  r(C.cream, 2, 22, 28, 12);
-  r(C.pinkD, 2, 22, 28, 2);
-  r(C.white, 12, 14, 7, 8);
-  r('#c79a6b', 13, 17, 5, 5);
-  r(C.purpleD, 15, 11, 1, 4);
-  r(C.night, 5, 34, 5, 5);
-  r(C.night, 22, 34, 5, 5);
-  r(C.stone, 6, 36, 3, 2);
-  r(C.stone, 23, 36, 3, 2);
-});
-
-const loanBooth = make(32, 44, (r) => {
-  r(C.purpleD, 2, 2, 28, 8);
-  r(C.yellow, 12, 3, 8, 6);
-  r(C.yellowD, 15, 4, 2, 4);
-  r(C.purple, 3, 10, 26, 32);
-  r(C.purpleD, 3, 10, 26, 2);
-  r(C.night, 8, 16, 16, 10);
-  r(C.glass, 9, 17, 14, 8);
-  r(C.purpleD, 6, 28, 20, 3);
-  r(C.yellow, 13, 33, 6, 6);
-  r(C.yellowD, 15, 35, 2, 2);
-});
-
-const well = make(T, 28, (r, e) => {
-  r(C.woodD, 2, 2, 2, 14);
-  r(C.woodD, 12, 2, 2, 14);
-  r(C.red, 0, 0, T, 4);
-  r(C.redD, 0, 3, T, 1);
-  e(C.stoneD, 8, 21, 7, 5);
-  e(C.stone, 8, 19, 7, 4);
-  e(C.waterD, 8, 19, 4, 2);
-  r(C.stoneL, 3, 17, 3, 1);
-});
-
-const board = make(32, 28, (r) => {
-  r(C.woodD, 4, 14, 3, 14);
-  r(C.woodD, 25, 14, 3, 14);
-  r(C.wood, 1, 2, 30, 16);
-  r(C.woodL, 1, 2, 30, 2);
-  r(C.white, 4, 6, 8, 9);
-  r(C.yellow, 14, 6, 6, 6);
-  r(C.pink, 22, 7, 6, 8);
-  r(C.red, 7, 6, 1, 1);
-  r(C.red, 16, 6, 1, 1);
-});
-
-const hammock = make(32, 20, (r) => {
-  r(C.woodD, 1, 2, 3, 18);
-  r(C.woodD, 28, 2, 3, 18);
-  for (let x = 4; x < 28; x++) {
-    const sag = Math.round(5 * Math.sin(((x - 4) / 24) * Math.PI));
-    r(x % 4 < 2 ? C.blue : C.white, x, 5 + sag, 1, 4);
-  }
-});
-
-const lamp = make(T, 32, (r) => {
-  r(C.night, 7, 8, 2, 22);
-  r(C.night, 5, 29, 6, 2);
-  r(C.night, 4, 2, 8, 2);
-  r(C.yellow, 5, 4, 6, 5);
-  r(C.white, 6, 5, 2, 2);
-});
-
-const sign = make(T, 20, (r) => {
-  r(C.woodD, 7, 8, 2, 12);
-  r(C.wood, 1, 1, 14, 9);
-  r(C.woodL, 1, 1, 14, 2);
-  r(C.woodD, 4, 5, 8, 1);
-  r(C.woodD, 4, 7, 5, 1);
-});
-
-/* ---------- 院子里的设备 ---------- */
-
-const pad = make(
-  32,
-  32,
+const vendingSpot = make(
+  T,
+  T,
   (r) => {
-    for (let i = 3; i < 29; i += 6) {
-      r(C.cream, i, 2, 3, 1);
-      r(C.cream, i, 29, 3, 1);
-      r(C.cream, 2, i, 1, 3);
-      r(C.cream, 29, i, 1, 3);
+    for (let i = 2; i < 14; i += 4) {
+      r(C.yellow, i, 2, 2, 1);
+      r(C.yellow, i, 13, 2, 1);
+      r(C.yellow, 2, i, 1, 2);
+      r(C.yellow, 13, i, 1, 2);
     }
-    r(C.cream, 15, 12, 2, 8);
-    r(C.cream, 12, 15, 8, 2);
   },
   false,
 );
 
-const assetArt = {
-  rain: (f) =>
-    make(32, 36, (r, e) => {
-      r(C.tinD, 4, 2, 24, 3);
-      r(C.tin, 6, 5, 20, 2);
-      r(C.tin, 10, 7, 12, 2);
-      r(C.tinD, 14, 9, 4, 4);
-      r(C.blue, 7, 13, 18, 20);
-      r(C.blueD, 7, 13, 3, 20);
-      r(C.tin, 7, 17, 18, 2);
-      r(C.tin, 7, 27, 18, 2);
-      e(C.waterL, 16, 13, 8, 2);
-      r(C.white, 13 + f * 4, 12, 2, 1);
-    }),
-  coop: (f) =>
-    make(32, 36, (r) => {
-      for (let i = 0; i < 10; i++) r(i % 3 === 2 ? C.redD : C.red, 2 + i, 12 - i, 28 - i * 2, 1);
-      r(C.redD, 2, 13, 28, 2);
-      r(C.wood, 4, 15, 24, 18);
-      r(C.woodD, 4, 31, 24, 2);
-      r(C.night, 12, 21, 8, 12);
-      // 鸡
-      const x = 20 + f * 2;
-      r(C.white, x, 26, 6, 5);
-      r(C.white, x + 4, 23, 3, 4);
-      r(C.red, x + 5, 22, 2, 1);
-      r(C.yellow, x + 7, 25, 1, 1);
-      r(C.yellowD, x + 1, 31, 1, 2);
-      r(C.yellowD, x + 4, 31, 1, 2);
-    }),
-  solar: (f) =>
-    make(32, 36, (r) => {
-      r(C.blueD, 2, 4, 28, 16);
-      for (let x = 2; x < 30; x += 7) r(C.glass, x, 4, 1, 16);
-      r(C.glass, 2, 11, 28, 1);
-      r(C.white, 5 + f * 14, 6, 4, 2);
-      r(C.night, 14, 20, 4, 6);
-      r(C.tinD, 6, 26, 20, 8);
-      r(C.tin, 6, 26, 20, 2);
-      r(f ? C.yellow : C.green, 9, 29, 3, 3);
-      r(C.green, 14, 29, 3, 3);
-      r(C.green, 19, 29, 3, 3);
-    }),
-  vending: (f) =>
-    make(32, 40, (r) => {
-      r(C.red, 6, 2, 20, 36);
-      r(C.redD, 6, 2, 3, 36);
-      r(C.night, 10, 5, 12, 18);
-      for (let y = 6; y < 22; y += 6) {
-        r(C.yellow, 11, y, 2, 4);
-        r(C.blue, 14, y, 2, 4);
-        r(C.green, 17, y, 2, 4);
-        r(C.white, 20, y, 1, 4);
-      }
-      r(f ? C.yellow : C.white, 22, 25, 2, 3);
-      r(C.night, 10, 30, 12, 5);
-      r(C.tinD, 11, 31, 10, 3);
-    }),
-};
-
-/* ---------- 废墟 ---------- */
-
-const ruinWall = make(T, 32, (r) => {
-  r('#8b9194', 1, 6, 14, 25);
-  for (let y = 10; y < 30; y += 5) r('#70777b', 1, y, 14, 1);
-  r('#70777b', 6, 6, 1, 4);
-  r('#70777b', 11, 11, 1, 4);
-  r('#8b9194', 1, 2, 4, 5);
-  r('#8b9194', 9, 4, 4, 3);
-  r(C.night, 5, 17, 6, 8);
+const tableSet = make(32, 22, (r, e) => {
+  e(C.white, 16, 8, 8, 4);
+  e(C.cream, 16, 9, 8, 3);
+  r(C.night, 15, 11, 2, 9);
+  r(C.night, 12, 19, 8, 2);
+  r(C.pink, 2, 10, 6, 3);
+  r(C.night, 3, 13, 1, 7);
+  r(C.night, 6, 13, 1, 7);
+  r(C.pink, 24, 10, 6, 3);
+  r(C.night, 25, 13, 1, 7);
+  r(C.night, 28, 13, 1, 7);
+  r(C.white, 14, 3, 3, 4);
+  r('#c79a6b', 14, 5, 3, 2);
 });
 
-const crate = make(T, T, (r) => {
-  r(C.wood, 2, 3, 12, 11);
-  r(C.woodD, 2, 3, 12, 2);
-  r(C.woodD, 2, 12, 12, 2);
-  r(C.woodD, 2, 3, 2, 11);
-  r(C.woodD, 12, 3, 2, 11);
-  r(C.yellow, 7, 7, 2, 3);
+const salesBooth = make(40, 44, (r, e, w) => {
+  r(C.red, 0, 0, 40, 12);
+  r(C.redD, 0, 10, 40, 2);
+  r(C.night, 3, 12, 2, 16);
+  r(C.night, 35, 12, 2, 16);
+  r(C.white, 2, 26, 36, 16);
+  r(C.cream, 2, 38, 36, 4);
+  r(C.red, 2, 26, 36, 3);
+  // 桌上的手机
+  r(C.night, 8, 19, 5, 8);
+  r(C.glass, 9, 20, 3, 5);
+  r(C.night, 16, 20, 5, 7);
+  r(C.lit, 17, 21, 3, 4);
+  r(C.night, 26, 19, 5, 8);
+  r(C.pink, 27, 20, 3, 5);
+  w('0首付', 20, 9, C.lit, 9);
+  w('分期', 20, 37, C.red, 9);
 });
 
-const car = make(32, 22, (r) => {
-  r(C.rust, 2, 9, 28, 9);
-  r('#8a4530', 2, 15, 28, 3);
-  r(C.rust, 8, 2, 14, 8);
-  r(C.glass, 10, 4, 5, 5);
-  r('#84b5c6', 16, 4, 4, 5);
-  r(C.yellowD, 3, 11, 2, 2);
-  r(C.night, 5, 16, 6, 5);
-  r(C.night, 21, 16, 6, 5);
-  r(C.stone, 7, 18, 2, 2);
-  r(C.stone, 23, 18, 2, 2);
+const kiosk = make(34, 40, (r, e, w) => {
+  r(C.greenD, 0, 0, 34, 10);
+  r(C.green, 1, 1, 32, 7);
+  w('报刊', 17, 8, C.white, 7);
+  r(C.creamD, 2, 10, 30, 28);
+  r(C.night, 5, 13, 24, 11);
+  r(C.lit, 6, 14, 22, 9);
+  [C.red, C.blue, C.yellow, C.pink, C.white].forEach((c, i) => r(c, 7 + i * 4, 16, 3, 5));
+  r(C.woodL, 2, 24, 30, 3);
+  [C.white, C.cream, C.white].forEach((c, i) => r(c, 5 + i * 9, 29, 7, 6));
+  r(C.red, 6, 30, 5, 1);
+  r(C.blue, 15, 30, 5, 1);
 });
 
-const fridge = make(T, 26, (r) => {
-  r(C.white, 2, 1, 12, 23);
-  r(C.cream, 2, 1, 2, 23);
-  r(C.tinD, 2, 9, 12, 1);
-  r(C.tinD, 11, 4, 1, 3);
-  r(C.tinD, 11, 12, 1, 5);
-  r(C.rust, 4, 19, 3, 2);
-  r(C.night, 3, 24, 2, 2);
-  r(C.night, 11, 24, 2, 2);
+const ebike = make(22, 16, (r) => {
+  r(C.night, 1, 9, 6, 6);
+  r(C.night, 15, 9, 6, 6);
+  r(C.stone, 3, 11, 2, 2);
+  r(C.stone, 17, 11, 2, 2);
+  r(C.green, 5, 8, 12, 3);
+  r(C.greenD, 5, 10, 12, 1);
+  r(C.green, 14, 3, 2, 6);
+  r(C.night, 12, 2, 6, 1);
+  r(C.night, 4, 5, 6, 2);
+  r(C.lit, 18, 5, 1, 2);
 });
 
-/* ---------- 屋里 ---------- */
+function car(body, bodyD) {
+  return make(40, 22, (r) => {
+    r(body, 2, 9, 36, 9);
+    r(bodyD, 2, 15, 36, 3);
+    r(body, 10, 2, 18, 8);
+    r(C.glass, 12, 4, 6, 5);
+    r(C.glassD, 20, 4, 6, 5);
+    r(C.lit, 36, 11, 2, 2);
+    r(C.red, 2, 11, 1, 2);
+    r(C.night, 6, 16, 7, 5);
+    r(C.night, 27, 16, 7, 5);
+    r(C.stone, 8, 18, 3, 2);
+    r(C.stone, 29, 18, 3, 2);
+  });
+}
+
+/* ---------- 楼房 ---------- */
+
+// 一扇窗：亮着灯、拉着帘子，或者晾着衣服
+function win(r, x, y, kind) {
+  r(C.greyD, x, y, 12, 12);
+  r(kind === 'lit' ? C.lit : kind === 'dark' ? '#5d6a7c' : C.glass, x + 1, y + 1, 10, 10);
+  r(C.greyD, x + 5, y + 1, 1, 10);
+  if (kind === 'curtain') r(C.pink, x + 1, y + 1, 4, 10);
+  if (kind === 'plain') r(C.white, x + 2, y + 2, 2, 2);
+  r(C.greyL, x - 1, y + 12, 14, 2);
+  if (kind === 'laundry') {
+    r(C.white, x + 1, y + 14, 3, 4);
+    r(C.blue, x + 5, y + 14, 3, 5);
+    r(C.red, x + 9, y + 14, 2, 3);
+  }
+}
+
+const apartment = make(128, 118, (r, e, w) => {
+  r(C.greyD, 0, 0, 128, 6);
+  r(C.grey, 2, 6, 124, 110);
+  r(C.greyL, 2, 6, 124, 2);
+  for (let x = 2; x < 126; x += 31) r(C.greyD, x, 8, 1, 108);
+  r(C.greyD, 2, 42, 124, 1);
+  r(C.greyD, 2, 76, 124, 1);
+  const kinds = ['plain', 'lit', 'laundry', 'dark', 'curtain', 'plain', 'laundry', 'lit'];
+  for (let floor = 0; floor < 2; floor++) {
+    for (let i = 0; i < 4; i++) win(r, 12 + i * 31, 14 + floor * 34, kinds[floor * 4 + i]);
+  }
+  win(r, 12, 84, 'dark');
+  win(r, 105, 84, 'curtain');
+  // 空调外机
+  r(C.white, 30, 62, 9, 6);
+  r(C.tinD, 32, 63, 5, 4);
+  r(C.white, 92, 28, 9, 6);
+  r(C.tinD, 94, 29, 5, 4);
+  // 单元门
+  r(C.greyD, 50, 82, 28, 34);
+  r('#4a4458', 53, 86, 22, 30);
+  r(C.glassD, 55, 88, 8, 12);
+  r(C.glassD, 65, 88, 8, 12);
+  r(C.lit, 73, 103, 1, 3);
+  r(C.night, 40, 72, 48, 11);
+  w('幸福公寓', 64, 81, C.lit, 9);
+  r(C.rust ?? '#a5563a', 110, 100, 6, 2);
+});
+
+function shop({ width, height, wall, wallD, band, bandD, sign, signColor, signSize = 11, front }) {
+  return make(width, height, (r, e, w) => {
+    r(wallD, 0, 0, width, 5);
+    r(wall, 2, 5, width - 4, height - 7);
+    for (let x = 8; x < width - 4; x += 9) r(wallD, x, 5, 1, 14);
+    r(band, 0, 18, width, 16);
+    r(bandD, 0, 32, width, 2);
+    w(sign, width / 2, 30, signColor, signSize);
+    r(wallD, 2, height - 4, width - 4, 2);
+    front(r, e, w);
+  });
+}
+
+// 橱窗：玻璃后面摆着东西
+function showcase(r, x, y, w, h, items) {
+  r(C.greyD, x, y, w, h);
+  r(C.glass, x + 1, y + 1, w - 2, h - 2);
+  r(C.white, x + 2, y + 2, 4, 2);
+  r(C.glassD, x + 1, y + h - 5, w - 2, 1);
+  items.forEach((c, i) => r(c, x + 3 + i * 5, y + h - 9, 3, 4));
+}
+
+function door(r, x, y, color = C.glass) {
+  r(C.greyD, x, y, 16, 26);
+  r(color, x + 1, y + 1, 6, 24);
+  r(color, x + 9, y + 1, 6, 24);
+  r(C.white, x + 2, y + 3, 2, 4);
+  r(C.night, x + 6, y + 13, 1, 3);
+  r(C.night, x + 9, y + 13, 1, 3);
+}
+
+const store = shop({
+  width: 128,
+  height: 84,
+  wall: C.white,
+  wallD: C.cream,
+  band: C.green,
+  bandD: C.greenD,
+  sign: '便利店 24H',
+  signColor: C.white,
+  front: (r) => {
+    r(C.orange, 0, 18, 128, 3);
+    showcase(r, 8, 40, 44, 34, [C.red, C.yellow, C.blue, C.green, C.pink, C.orange, C.red]);
+    door(r, 56, 56);
+    showcase(r, 76, 40, 44, 34, [C.blue, C.white, C.yellow, C.red, C.green, C.pink, C.blue]);
+  },
+});
+
+const diner = shop({
+  width: 144,
+  height: 84,
+  wall: C.cream,
+  wallD: C.creamD,
+  band: C.red,
+  bandD: C.redD,
+  sign: '阿福快餐',
+  signColor: C.lit,
+  front: (r, e) => {
+    r(C.yellow, 0, 18, 144, 2);
+    for (const x of [8, 96]) {
+      r(C.greyD, x, 42, 40, 30);
+      r(C.lit, x + 1, 43, 38, 28);
+      r(C.woodD, x + 6, 60, 12, 2);
+      r(C.woodD, x + 22, 60, 12, 2);
+      r(C.red, x + 8, 55, 3, 5);
+      r(C.red, x + 26, 55, 3, 5);
+      r(C.white, x + 3, 45, 5, 3);
+    }
+    door(r, 64, 56, C.lit);
+    e(C.yellow, 72, 46, 7, 6);
+    e(C.red, 72, 46, 4, 3);
+  },
+});
+
+const teaShop = shop({
+  width: 112,
+  height: 84,
+  wall: C.white,
+  wallD: '#f1dfe5',
+  band: C.pink,
+  bandD: C.pinkD,
+  sign: '一口甜 奶茶',
+  signColor: C.white,
+  signSize: 10,
+  front: (r) => {
+    for (let x = 0; x < 112; x += 14) r(C.white, x, 34, 7, 6);
+    for (let x = 7; x < 112; x += 14) r(C.pink, x, 34, 7, 6);
+    r(C.greyD, 10, 46, 56, 24);
+    r('#fff7ea', 11, 47, 54, 22);
+    r(C.woodL, 8, 68, 60, 4);
+    [16, 28, 40, 52].forEach((x, i) => {
+      r(C.white, x, 56, 6, 10);
+      r(['#c79a6b', C.pink, '#b6d98a', '#c79a6b'][i], x + 1, 59, 4, 7);
+      r(C.purpleD, x + 3, 52, 1, 5);
+    });
+    door(r, 82, 56, '#fbe3ea');
+  },
+});
+
+const school = make(144, 100, (r, e, w) => {
+  r(C.brickD, 0, 0, 144, 6);
+  r(C.brick, 2, 6, 140, 92);
+  for (let y = 10; y < 96; y += 6) {
+    r(C.brickD, 2, y, 140, 1);
+    for (let x = (y / 6) % 2 ? 8 : 14; x < 140; x += 12) r(C.brickD, x, y - 5, 1, 5);
+  }
+  r(C.blue, 22, 12, 100, 18);
+  r(C.blueD, 22, 28, 100, 2);
+  w('社区夜校', 72, 26, C.white, 12);
+  for (const x of [10, 40, 92, 122]) win(r, x, 42, x === 40 || x === 92 ? 'lit' : 'plain');
+  r(C.creamD, 54, 60, 36, 38);
+  r(C.woodD, 58, 66, 28, 32);
+  r(C.wood, 59, 67, 12, 31);
+  r(C.wood, 73, 67, 12, 31);
+  r(C.lit, 70, 82, 1, 3);
+  r(C.lit, 73, 82, 1, 3);
+  r(C.white, 10, 74, 22, 16);
+  r(C.blue, 12, 76, 18, 3);
+  r(C.greyD, 12, 81, 14, 1);
+  r(C.greyD, 12, 84, 16, 1);
+});
+
+const bunkHouse = make(96, 84, (r, e, w) => {
+  r('#4f4a5a', 0, 0, 96, 6);
+  r('#7b7482', 2, 6, 92, 76);
+  r('#6a6372', 2, 6, 92, 3);
+  for (let x = 10; x < 92; x += 11) r('#6a6372', x, 9, 1, 73);
+  r('#8f6a4a', 14, 20, 20, 9);
+  r('#a5563a', 60, 36, 16, 10);
+  r(C.night, 8, 14, 46, 14);
+  w('床位 日租', 31, 25, C.lit, 9);
+  win(r, 62, 14, 'dark');
+  win(r, 10, 44, 'lit');
+  r('#4a4458', 40, 50, 18, 32);
+  r('#3b3550', 42, 52, 14, 30);
+  r(C.lit, 53, 66, 1, 3);
+  r(C.tinD, 70, 62, 14, 20);
+  r(C.tin, 70, 62, 14, 3);
+});
+
+/* ---------- 出租屋里 ---------- */
 
 const bed = make(T, 32, (r) => {
   r(C.woodD, 1, 1, 14, 30);
@@ -554,66 +643,44 @@ const bed = make(T, 32, (r) => {
   r('#6f9bc8', 5, 23, 6, 1);
 });
 
-const tv = (f) =>
-  make(32, 28, (r) => {
-    r(C.woodD, 2, 16, 28, 10);
-    r(C.wood, 2, 16, 28, 2);
-    r(C.night, 6, 1, 20, 15);
-    r(f ? '#7fd0a8' : '#6dbbe6', 8, 3, 16, 11);
-    r(C.white, 10 + f * 6, 5, 3, 3);
-    r(C.yellow, 16 - f * 4, 9, 4, 3);
-    r(C.tinD, 5, 20, 8, 4);
-    r(C.red, 7, 21, 1, 1);
-    r(C.tinD, 19, 20, 8, 4);
-  });
+const stove = make(32, 28, (r, e) => {
+  r(C.tinD, 1, 10, 30, 16);
+  r(C.tin, 1, 10, 30, 3);
+  r(C.night, 4, 8, 9, 3);
+  r(C.night, 18, 8, 9, 3);
+  e(C.night, 22, 5, 5, 3);
+  r(C.night, 26, 4, 4, 1);
+  r(C.tinD, 4, 16, 10, 8);
+  r(C.night, 6, 18, 6, 4);
+  r(C.white, 19, 16, 9, 8);
+  r(C.red, 21, 18, 1, 1);
+  r(C.green, 24, 18, 1, 1);
+});
 
-const tvStand = make(32, 28, (r) => {
-  r(C.woodD, 2, 16, 28, 10);
-  r(C.wood, 2, 16, 28, 2);
-  r(C.cream, 12, 10, 8, 6);
-  r(C.green, 14, 5, 4, 6);
-  r(C.leafL, 12, 3, 3, 3);
-  r(C.leafL, 18, 4, 3, 3);
+const desk = make(32, 26, (r) => {
+  r(C.woodD, 1, 10, 30, 14);
+  r(C.wood, 1, 10, 30, 3);
+  r(C.woodD, 3, 16, 10, 6);
+  r(C.night, 16, 2, 12, 9);
+  r(C.glassD, 17, 3, 10, 6);
+  r(C.night, 20, 10, 4, 1);
+  r(C.white, 5, 6, 6, 4);
+  r(C.red, 6, 7, 4, 1);
 });
 
 const rug = make(
   32,
   T,
   (r) => {
-    r(C.redD, 1, 1, 30, 14);
-    r(C.red, 3, 3, 26, 10);
-    r(C.yellow, 6, 6, 20, 1);
-    r(C.yellow, 6, 9, 20, 1);
+    r(C.blueD, 1, 1, 30, 14);
+    r(C.blue, 3, 3, 26, 10);
+    r(C.white, 6, 6, 20, 1);
+    r(C.white, 6, 9, 20, 1);
   },
   false,
 );
 
-const wallTile = make(
-  T,
-  T,
-  (r) => {
-    r(C.cream, 0, 0, T, T);
-    r('#d1c4a8', 0, 12, T, 4);
-    r('#d1c4a8', 7, 0, 1, 12);
-    r(C.woodD, 0, 15, T, 1);
-  },
-  false,
-);
-
-const roofTile = make(
-  T,
-  T,
-  (r) => {
-    r('#3a3346', 0, 0, T, T);
-    r('#322c3d', 0, 7, T, 1);
-    r('#322c3d', 0, 15, T, 1);
-    r('#322c3d', 4, 0, 1, 7);
-    r('#322c3d', 12, 8, 1, 7);
-  },
-  false,
-);
-
-const windowArt = make(T, T, (r) => {
+const roomWindow = make(T, T, (r) => {
   r(C.woodD, 2, 2, 12, 11);
   r(C.glass, 3, 3, 10, 9);
   r(C.white, 4, 4, 3, 2);
@@ -630,187 +697,29 @@ const mat = make(
   false,
 );
 
-const bike = make(T, T, (r) => {
-  r(C.night, 1, 9, 5, 5);
-  r(C.night, 10, 9, 5, 5);
-  r(C.stone, 3, 11, 1, 1);
-  r(C.stone, 12, 11, 1, 1);
-  r(C.green, 4, 7, 9, 2);
-  r(C.green, 10, 4, 2, 5);
-  r(C.night, 9, 3, 4, 1);
-  r(C.night, 3, 5, 4, 2);
-});
-
-/* ---------- 作物 ---------- */
-
-function crop(kind, stage) {
-  return make(T, T, (r, e) => {
-    if (stage === 0) {
-      r(C.leafL, 7, 10, 1, 3);
-      r(C.leafL, 6, 9, 1, 1);
-      r(C.leafL, 8, 9, 1, 1);
-      return;
-    }
-    if (stage === 1) {
-      r(C.leaf, 7, 7, 2, 6);
-      r(C.leafL, 4, 8, 3, 2);
-      r(C.leafL, 9, 6, 3, 2);
-      return;
-    }
-    if (kind === 'cabbage') {
-      e(C.leafD, 8, 10, 6, 4);
-      e(stage === 3 ? '#9fd67a' : C.leaf, 8, 8.5, 5, 4);
-      if (stage === 3) e('#c5ec9f', 7.5, 7.5, 2.5, 2);
-    } else if (kind === 'potato') {
-      e(C.leafD, 8, 9, 6, 4);
-      e(C.leaf, 8, 7, 5, 3);
-      r(C.leafL, 5, 5, 2, 1);
-      if (stage === 3) {
-        e('#c9a06a', 4.5, 12.5, 2.5, 1.8);
-        e('#c9a06a', 11.5, 12.5, 2.5, 1.8);
-      }
-    } else {
-      r(C.woodD, 8, 2, 1, 12);
-      e(C.leafD, 8, 9, 5, 5);
-      e(C.leaf, 8, 7, 4, 4);
-      if (stage === 3) {
-        [
-          [4, 8],
-          [10, 6],
-          [9, 11],
-        ].forEach(([x, y]) => {
-          r('#e0503c', x, y, 3, 3);
-          r('#f58a72', x, y, 1, 1);
-        });
-      }
-    }
-  });
-}
-
-/* ---------- 物品图标 ---------- */
-
-const icons = {
-  hoe: make(T, T, (r) => {
-    for (let i = 0; i < 10; i++) r(C.wood, 4 + i, 13 - i, 2, 1);
-    r(C.tin, 9, 2, 5, 2);
-    r(C.tinD, 9, 4, 2, 3);
-  }),
-  can: make(T, T, (r) => {
-    r(C.blue, 4, 6, 8, 8);
-    r(C.blueD, 4, 12, 8, 2);
-    r(C.blue, 12, 7, 3, 2);
-    r(C.blue, 13, 5, 2, 2);
-    r(C.blueD, 2, 7, 2, 5);
-    r(C.waterL, 5, 6, 6, 1);
-  }),
-  rod: make(T, T, (r) => {
-    for (let i = 0; i < 12; i++) r(C.woodD, 2 + i, 13 - i, 1, 2);
-    r(C.white, 13, 2, 1, 8);
-    r(C.red, 12, 10, 3, 2);
-  }),
-  seedCabbage: seedBag('#9fd67a'),
-  seedPotato: seedBag('#c9a06a'),
-  seedTomato: seedBag('#e0503c'),
-  cabbage: make(T, T, (r, e) => {
-    e(C.leafD, 8, 9, 6, 5);
-    e('#9fd67a', 8, 8, 5, 4);
-    e('#c5ec9f', 7, 7, 2.5, 2);
-  }),
-  potato: make(T, T, (r, e) => {
-    e('#b88c58', 8, 9, 6, 4.5);
-    e('#c9a06a', 7.5, 8, 5, 3.5);
-    r('#9a7445', 5, 8, 1, 1);
-    r('#9a7445', 10, 10, 1, 1);
-  }),
-  tomato: make(T, T, (r, e) => {
-    e('#c8402e', 8, 9.5, 5.5, 5);
-    e('#e0503c', 7.5, 9, 4.5, 4);
-    r('#f58a72', 5, 7, 2, 1);
-    r(C.leaf, 6, 3, 5, 2);
-    r(C.leaf, 8, 2, 1, 2);
-  }),
-  tin: make(T, T, (r) => {
-    r(C.tin, 4, 3, 8, 11);
-    r(C.tinD, 4, 3, 8, 2);
-    r(C.tinD, 4, 12, 8, 2);
-    r(C.red, 4, 6, 8, 5);
-    r(C.white, 6, 8, 4, 1);
-  }),
-  scrap: make(T, T, (r) => {
-    r(C.tinD, 3, 8, 7, 5);
-    r(C.tin, 6, 4, 6, 6);
-    r(C.rust, 9, 9, 4, 4);
-    r(C.night, 8, 6, 2, 2);
-  }),
-  battery: make(T, T, (r) => {
-    r(C.night, 5, 4, 7, 10);
-    r(C.yellow, 5, 4, 7, 4);
-    r(C.tin, 7, 2, 3, 2);
-    r(C.white, 8, 9, 1, 3);
-    r(C.white, 7, 10, 3, 1);
-  }),
-  berry: make(T, T, (r, e) => {
-    e('#c8405a', 6, 10, 3, 3);
-    e('#c8405a', 11, 9, 2.5, 2.5);
-    r('#f08aa0', 5, 8, 1, 1);
-    r(C.leaf, 7, 4, 4, 2);
-    r(C.leafD, 8, 5, 1, 3);
-  }),
-  mushroom: mushroom,
-  fish: make(T, T, (r, e) => {
-    e(C.blueD, 7, 9, 5.5, 3.5);
-    e('#6fa3d6', 7, 8, 4.5, 2.5);
-    r(C.blueD, 12, 6, 3, 2);
-    r(C.blueD, 12, 10, 3, 2);
-    r(C.white, 4, 8, 1, 1);
-  }),
-  tea: make(T, T, (r) => {
-    r(C.white, 5, 5, 6, 9);
-    r('#c79a6b', 6, 8, 4, 6);
-    r(C.night, 6, 12, 1, 1);
-    r(C.night, 8, 13, 1, 1);
-    r(C.pink, 4, 4, 8, 2);
-    r(C.purpleD, 9, 1, 1, 4);
-  }),
-  coin: make(T, T, (r, e) => {
-    e(C.yellowD, 8, 8.5, 5.5, 5.5);
-    e(C.yellow, 8, 8, 5, 5);
-    r(C.yellowD, 7, 5, 2, 6);
-    r(C.white, 5, 5, 1, 2);
-  }),
-};
-
-function seedBag(color) {
-  return make(T, T, (r) => {
-    r(C.cream, 4, 4, 8, 10);
-    r('#cdbf9f', 4, 12, 8, 2);
-    r(C.woodD, 5, 3, 6, 1);
-    r(color, 6, 7, 4, 4);
-  });
-}
-
 /* ---------- 人物 ---------- */
 
 // 生成一个角色的全部帧：[朝向][帧]，朝向 0 下 1 上 2 左 3 右，帧 0 站立 1/2 迈步。
-function human({ hair, top, topD, bottom, skin = C.skin, hat }) {
+function human({ hair, top, topD, bottom, skin = C.skin, hat, shorts }) {
   const frame = (dir, step) =>
     make(T, 22, (r) => {
       const bob = step ? 1 : 0;
-      // 腿
+      const leg = shorts ? skin : bottom;
       const lx = step === 1 ? -1 : 0;
       const rx = step === 2 ? 1 : 0;
       if (dir < 2) {
-        r(bottom, 5, 16, 2, step === 1 ? 3 : 4);
-        r(bottom, 9, 16, 2, step === 2 ? 3 : 4);
+        r(leg, 5, 16, 2, step === 1 ? 3 : 4);
+        r(leg, 9, 16, 2, step === 2 ? 3 : 4);
+        if (shorts) r(bottom, 5, 16, 6, 2);
         r(INK, 5, step === 1 ? 19 : 20, 2, 1);
         r(INK, 9, step === 2 ? 19 : 20, 2, 1);
       } else {
-        r(bottom, 6 + lx * 2, 16, 2, 4);
-        r(bottom, 8 + rx * 2, 16, 2, 4);
+        r(leg, 6 + lx * 2, 16, 2, 4);
+        r(leg, 8 + rx * 2, 16, 2, 4);
+        if (shorts) r(bottom, 6, 16, 4, 2);
         r(INK, 6 + lx * 2, 20, 2, 1);
         r(INK, 8 + rx * 2, 20, 2, 1);
       }
-      // 身体
       r(top, 4, 10 + bob, 8, 7 - bob);
       r(topD, 4, 15, 8, 1);
       if (dir === 0) {
@@ -824,7 +733,6 @@ function human({ hair, top, topD, bottom, skin = C.skin, hat }) {
         r(topD, 7, 11 + bob, 2, 4);
         r(skin, 7, 14 + bob, 2, 1);
       }
-      // 头
       r(skin, 4, 3 + bob, 8, 7);
       r(hair, 4, 2 + bob, 8, 3);
       if (dir === 0) {
@@ -841,83 +749,75 @@ function human({ hair, top, topD, bottom, skin = C.skin, hat }) {
       }
       if (hat) {
         r(hat, 3, 1 + bob, 10, 3);
-        if (dir === 0) r(hat, 3, 4 + bob, 10, 1);
+        if (dir === 0) r(hat, 2, 4 + bob, 12, 1);
       }
     });
   const right = [0, 1, 2].map((s) => frame(3, s));
   return [[0, 1, 2].map((s) => frame(0, s)), [0, 1, 2].map((s) => frame(1, s)), right.map(flip), right];
 }
 
-function dog(step) {
-  return make(18, 14, (r) => {
-    r('#7a6252', 2, 5, 11, 5);
-    r('#63503f', 2, 9, 11, 1);
-    r('#7a6252', 11, 2, 5, 6);
-    r('#7a6252', 11, 0, 2, 2);
-    r('#7a6252', 14, 0, 2, 2);
-    r(INK, 14, 4, 1, 1);
-    r(C.white, 15, 6, 2, 1);
-    r('#7a6252', 0, 3, 2, 3);
-    const a = step ? 0 : 1;
-    r('#63503f', 3 + a, 10, 2, 3);
-    r('#63503f', 10 - a, 10, 2, 3);
-  });
-}
+const coin = make(T, T, (r, e) => {
+  e(C.yellowD, 8, 8.5, 5.5, 5.5);
+  e(C.yellow, 8, 8, 5, 5);
+  r(C.yellowD, 5, 6, 6, 1);
+  r(C.yellowD, 5, 9, 6, 1);
+  r(C.yellowD, 7, 6, 2, 6);
+});
 
 let cache = null;
 
 export function art() {
   if (cache) return cache;
-  const d = [dog(0), dog(1)];
-  const crops = {};
-  for (const kind of ['cabbage', 'potato', 'tomato']) crops[kind] = [0, 1, 2, 3].map((s) => crop(kind, s));
   cache = {
     grass: [0, 1, 2, 3, 4, 5, 6, 7].map((i) => grassTile(100 + i)),
-    path: [0, 1, 2].map((i) => speckled(200 + i, C.path, [C.pathD, '#dfc391'], 7, true)),
-    concrete: [0, 1, 2].map((i) => speckled(300 + i, C.stone, [C.stoneD, C.stoneL], 6, true)),
-    soil: [soilTile(false), soilTile(true)],
+    path: [0, 1, 2].map((i) => speckled(200 + i, C.path, [C.pathD, '#dfc391'], 7)),
+    pave: [0, 1, 2].map((i) => paveTile(300 + i)),
+    road: [0, 1, 2].map((i) => speckled(400 + i, C.road, [C.roadD, C.roadL], 6)),
     water: [waterTile(0), waterTile(1), waterTile(2)],
-    plank: plankTile(),
-    wall: wallTile,
-    roof: roofTile,
+    plank,
+    roomWall,
+    void: voidTile,
     tree: [tree(1), tree(2), tree(3)],
-    deadTree,
-    bush: [bush(false), bush(true)],
-    mushroom,
-    rock,
-    fence,
-    shack,
-    office,
-    stall,
-    teaCart,
-    loanBooth,
-    well,
-    board,
-    hammock,
+    hedge,
+    flowerbed,
+    bench,
     lamp,
-    sign,
-    pad,
-    asset: Object.fromEntries(Object.entries(assetArt).map(([id, f]) => [id, [f(0), f(1)]])),
-    ruinWall,
-    node: { crate: [crate, dim(crate)], car: [car, dim(car)], fridge: [fridge, dim(fridge)] },
+    bin,
+    hydrant,
+    busStop,
+    vending: [vending(0), vending(1)],
+    vendingSpot,
+    tableSet,
+    salesBooth,
+    kiosk,
+    ebike,
+    cars: [car(C.blue, C.blueD), car(C.red, C.redD), car(C.cream, C.creamD), car(C.green, C.greenD)].map((c) => [c, flip(c)]),
+    apartment,
+    store,
+    diner,
+    teaShop,
+    school,
+    bunkHouse,
     bed,
-    tv: [tv(0), tv(1)],
-    tvStand,
+    stove,
+    desk,
     rug,
-    window: windowArt,
+    roomWindow,
     mat,
-    bike,
-    crops,
-    icons,
+    coin,
     people: {
-      player: human({ hair: '#3a2d2a', top: '#e8b54a', topD: '#c8922f', bottom: '#4a5f86' }),
-      zhou: human({ hair: '#b9b9b9', top: '#5f8f6a', topD: '#4a7355', bottom: '#5a5248', hat: '#4a7355' }),
-      mei: human({ hair: '#7a3f2c', top: '#d2583f', topD: '#aa4331', bottom: '#3d3a4a' }),
-      jin: human({ hair: '#22202a', top: '#4f416d', topD: '#3b3052', bottom: '#22202a' }),
-      tea: human({ hair: '#e7a8c0', top: '#f3efe6', topD: '#d8d2c4', bottom: '#d77b99' }),
+      player: human({ hair: '#3a2d2a', top: '#8a93a8', topD: '#6f778c', bottom: '#454a5c' }),
+      chen: human({ hair: '#c9c9c9', top: '#f3efe6', topD: '#d8d2c4', bottom: '#5f8f6a', hat: '#d9b56a', shorts: true }),
+      qiang: human({ hair: '#22202a', top: '#d2583f', topD: '#aa4331', bottom: '#3d3a4a', hat: '#d2583f' }),
+      lili: human({ hair: '#5a3a2c', top: '#2f3550', topD: '#232842', bottom: '#2f3550' }),
+      sales: human({ hair: '#22202a', top: '#f2c14e', topD: '#d19a2e', bottom: '#3d3a4a' }),
+      guru: human({ hair: '#22202a', top: '#6b5a8e', topD: '#4f416d', bottom: '#2b2437' }),
+      walkers: [
+        human({ hair: '#7a3f2c', top: '#5fae6b', topD: '#458a52', bottom: '#4a5f86' }),
+        human({ hair: '#22202a', top: '#ee9fb8', topD: '#d77b99', bottom: '#716e7a' }),
+        human({ hair: '#b9b9b9', top: '#4c7fb5', topD: '#3a648f', bottom: '#5a5248' }),
+      ],
     },
-    dogR: d,
-    dogL: d.map(flip),
   };
   return cache;
 }
