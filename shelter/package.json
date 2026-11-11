@@ -1,10 +1,9 @@
 {
-  "name": "shelter",
+  "name": "lying-flat",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "simulate": "node scripts/simulate.js",
     "bundle": "node scripts/bundle.js",
     "serve": "python3 -m http.server 4173"
   }
