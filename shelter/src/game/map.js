@@ -200,11 +200,12 @@ export function buildStreet(seed) {
 /* ---------- 出租屋 ---------- */
 
 export function buildRoom() {
-  const w = 8;
-  const h = 7;
+  const w = 11;
+  const h = 9;
   const solid = new Uint8Array(w * h);
   const inter = new Map();
-  const things = [];
+  const things = []; // 家具：占地格子，图片底边对齐占地底边
+  const decor = []; // 墙上和地上的摆设：直接给像素坐标；when 决定出不出现，base 决定前后遮挡
   const fill = (x0, y0, x1, y1) => {
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) solid[y * w + x] = 1;
   };
@@ -217,13 +218,41 @@ export function buildRoom() {
     fill(x, y, x + fw - 1, y + fh - 1);
     for (let j = y; j < y + fh; j++) for (let i = x; i < x + fw; i++) inter.set(key(i, j), what);
   };
+  const say = (label, text) => ({ type: 'look', label, text });
+
   put('bed', 1, 2, 1, 2, { type: 'bed', label: '睡觉' });
-  put('stove', 2, 2, 2, 1, { type: 'stove', label: '做饭' });
-  put('desk', 5, 2, 2, 1, { type: 'desk', label: '坐下发会儿呆' });
-  things.push({ art: 'rug', x: 3, y: 4, fw: 2, fh: 1, flat: true });
-  things.push({ art: 'roomWindow', x: 4, y: 1, fw: 1, fh: 1, flat: true });
-  things.push({ art: 'mat', x: 3, y: 5, fw: 1, fh: 1, flat: true });
-  inter.set(key(3, 6), { type: 'exit', label: '出门' });
-  inter.set(key(4, 6), { type: 'exit', label: '出门' });
-  return { w, h, solid, things, inter, npcs: [], spawn: { x: 3.5, y: 5.4 }, bedside: { x: 2.5, y: 3.5 } };
+  put('nightstand', 2, 2, 1, 1, say('床头柜', '闹钟定在 7:00。旁边是半杯昨天的水。'));
+  put('desk', 3, 2, 2, 1, { type: 'desk', label: '坐下发会儿呆' });
+  put('wardrobe', 5, 2, 1, 1, say('衣柜', '三件 T 恤、两条裤子、一件冬天的外套。柜顶的编织袋是搬来那天用的。'));
+  put('fridge', 6, 2, 1, 1, { type: 'fridge', label: '看冰箱' });
+  put('kitchen', 7, 2, 2, 1, { type: 'stove', label: '做饭' });
+  put('cart', 9, 2, 1, 1, { type: 'stove', label: '做饭' });
+  put('rack', 9, 4, 1, 2, say('晾衣架', '快餐店的工服，洗了三天还没干透。'));
+  put('boxes', 1, 6, 1, 1, say('纸箱', '搬来时的纸箱，一直没拆完。里面是课本和一些舍不得扔的东西。'));
+  put('lowTable', 7, 5, 1, 1, say('小矮桌', '吃饭、放东西都在这张桌上。'));
+
+  // 墙上
+  decor.push({ art: 'window', px: 16, py: 1 });
+  decor.push({ art: 'certificate', px: 50, py: 2, when: 'skilled' });
+  decor.push({ art: 'calendar', px: 68, py: 1 });
+  decor.push({ art: 'clock', px: 99, py: 0 });
+  decor.push({ art: 'shelf', px: 112, py: 0 });
+  decor.push({ art: 'poster', px: 145, py: 0 });
+  // 地上
+  decor.push({ art: 'rug', px: 64, py: 64 });
+  decor.push({ art: 'shoes', px: 80, py: 116 });
+  decor.push({ art: 'doorway', px: 80, py: 128 });
+  decor.push({ art: 'stool', px: 99, py: 84, base: 92 });
+  decor.push({ art: 'noodles', px: 34, py: 54, when: 'low' });
+  decor.push({ art: 'helmet', px: 100, py: 116, when: 'ebike', base: 125 });
+  decor.push({ art: 'toolbox', px: 50, py: 116, when: 'skilled', base: 126 });
+  decor.push({ art: 'groceryBag', px: 98, py: 44, when: 'groceries', base: 57 });
+  // 家具上面
+  decor.push({ art: 'plant', px: 49, py: 12, base: 48.4 });
+  decor.push({ art: 'textbook', px: 51, py: 23, when: 'classes', base: 48.5 });
+  decor.push({ art: 'ledger', px: 53, py: 20, when: 'ledger', base: 48.6 });
+  decor.push({ art: 'phone', px: 44, py: 28, when: 'phone', base: 48.5 });
+
+  inter.set(key(5, 8), { type: 'exit', label: '出门' });
+  return { w, h, solid, things, decor, inter, npcs: [], spawn: { x: 5.5, y: 7.4 }, bedside: { x: 2.5, y: 3.6 } };
 }

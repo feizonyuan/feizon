@@ -214,47 +214,6 @@ function waterTile(frame) {
   );
 }
 
-const plank = make(
-  T,
-  T,
-  (r) => {
-    r(C.wood, 0, 0, T, T);
-    r(C.woodD, 0, 7, T, 1);
-    r(C.woodD, 0, 15, T, 1);
-    r(C.woodD, 5, 0, 1, 7);
-    r(C.woodD, 11, 8, 1, 7);
-    r(C.woodL, 1, 2, 3, 1);
-    r(C.woodL, 7, 10, 3, 1);
-  },
-  false,
-);
-
-const roomWall = make(
-  T,
-  T,
-  (r) => {
-    r('#d9d2c0', 0, 0, T, T);
-    r('#c9c1ad', 0, 12, T, 4);
-    r('#c2b9a3', 3, 3, 3, 2);
-    r('#c2b9a3', 10, 7, 4, 1);
-    r(C.woodD, 0, 15, T, 1);
-  },
-  false,
-);
-
-const voidTile = make(
-  T,
-  T,
-  (r) => {
-    r('#2f2a3a', 0, 0, T, T);
-    r('#292433', 0, 7, T, 1);
-    r('#292433', 0, 15, T, 1);
-    r('#292433', 4, 0, 1, 7);
-    r('#292433', 12, 8, 1, 7);
-  },
-  false,
-);
-
 /* ---------- 植物和街上的小东西 ---------- */
 
 const tree = (seed) =>
@@ -631,72 +590,6 @@ const bunkHouse = make(96, 84, (r, e, w) => {
   r(C.tin, 70, 62, 14, 3);
 });
 
-/* ---------- 出租屋里 ---------- */
-
-const bed = make(T, 32, (r) => {
-  r(C.woodD, 1, 1, 14, 30);
-  r(C.white, 3, 4, 10, 7);
-  r(C.cream, 3, 9, 10, 2);
-  r(C.blue, 3, 12, 10, 17);
-  r(C.blueD, 3, 12, 10, 2);
-  r('#6f9bc8', 5, 18, 6, 1);
-  r('#6f9bc8', 5, 23, 6, 1);
-});
-
-const stove = make(32, 28, (r, e) => {
-  r(C.tinD, 1, 10, 30, 16);
-  r(C.tin, 1, 10, 30, 3);
-  r(C.night, 4, 8, 9, 3);
-  r(C.night, 18, 8, 9, 3);
-  e(C.night, 22, 5, 5, 3);
-  r(C.night, 26, 4, 4, 1);
-  r(C.tinD, 4, 16, 10, 8);
-  r(C.night, 6, 18, 6, 4);
-  r(C.white, 19, 16, 9, 8);
-  r(C.red, 21, 18, 1, 1);
-  r(C.green, 24, 18, 1, 1);
-});
-
-const desk = make(32, 26, (r) => {
-  r(C.woodD, 1, 10, 30, 14);
-  r(C.wood, 1, 10, 30, 3);
-  r(C.woodD, 3, 16, 10, 6);
-  r(C.night, 16, 2, 12, 9);
-  r(C.glassD, 17, 3, 10, 6);
-  r(C.night, 20, 10, 4, 1);
-  r(C.white, 5, 6, 6, 4);
-  r(C.red, 6, 7, 4, 1);
-});
-
-const rug = make(
-  32,
-  T,
-  (r) => {
-    r(C.blueD, 1, 1, 30, 14);
-    r(C.blue, 3, 3, 26, 10);
-    r(C.white, 6, 6, 20, 1);
-    r(C.white, 6, 9, 20, 1);
-  },
-  false,
-);
-
-const roomWindow = make(T, T, (r) => {
-  r(C.woodD, 2, 2, 12, 11);
-  r(C.glass, 3, 3, 10, 9);
-  r(C.white, 4, 4, 3, 2);
-  r(C.woodD, 7, 3, 1, 9);
-});
-
-const mat = make(
-  T,
-  T,
-  (r) => {
-    r(C.yellowD, 2, 6, 12, 8);
-    r(C.yellow, 3, 7, 10, 6);
-  },
-  false,
-);
-
 /* ---------- 人物 ---------- */
 
 // 生成一个角色的全部帧：[朝向][帧]，朝向 0 下 1 上 2 左 3 右，帧 0 站立 1/2 迈步。
@@ -764,6 +657,8 @@ const coin = make(T, T, (r, e) => {
   r(C.yellowD, 7, 6, 2, 6);
 });
 
+export { make, C, INK };
+
 let cache = null;
 
 export function art() {
@@ -774,9 +669,6 @@ export function art() {
     pave: [0, 1, 2].map((i) => paveTile(300 + i)),
     road: [0, 1, 2].map((i) => speckled(400 + i, C.road, [C.roadD, C.roadL], 6)),
     water: [waterTile(0), waterTile(1), waterTile(2)],
-    plank,
-    roomWall,
-    void: voidTile,
     tree: [tree(1), tree(2), tree(3)],
     hedge,
     flowerbed,
@@ -798,12 +690,6 @@ export function art() {
     teaShop,
     school,
     bunkHouse,
-    bed,
-    stove,
-    desk,
-    rug,
-    roomWindow,
-    mat,
     coin,
     people: {
       player: human({ hair: '#3a2d2a', top: '#8a93a8', topD: '#6f778c', bottom: '#454a5c' }),

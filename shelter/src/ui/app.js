@@ -33,6 +33,7 @@ import {
   endDay,
 } from '../game/state.js';
 import { T, art } from '../game/art.js';
+import { roomArt } from '../game/roomart.js';
 import { WATER, PATH, PAVE, ROAD, ROAD_Y, CROSSINGS, HOME_DOOR, BUNK_DOOR, GURU, VENDING_SPOTS, key, buildStreet, buildRoom } from '../game/map.js';
 import { LESSONS, CHEN_IDLE, CHEN_DONE, INTRO, qiangLine, liliLine } from '../game/story.js';
 import { ICONS } from './icons.js';
@@ -383,6 +384,10 @@ function findTarget() {
       return make(s.groceries ? '做饭' : '灶台（没有食材）', () => spend(cook, '自己做了顿饭'));
     case 'desk':
       return make('坐下发会儿呆', () => spend(sitBench, '对着窗户坐了一会儿'));
+    case 'fridge':
+      return make('看冰箱', () => toast(s.groceries ? `冰箱里有 ${s.groceries} 份食材。门上贴着一张便签：记得交房租。` : '冰箱是空的，只有半瓶老干妈。门上贴着一张便签：记得交房租。'));
+    case 'look':
+      return make(it.label, () => toast(it.text));
     case 'exit':
       return make('出门', goOutside);
     case 'home':
@@ -1092,6 +1097,70 @@ function frame(now) {
 
 const hash = (x, y) => ((x * 73856093) ^ (y * 19349663)) >>> 0;
 
+// 出租屋里随日子变化的摆设
+const DECOR_WHEN = {
+  skilled: (s) => skilled(s),
+  low: (s) => s.sanity < RULES.lowSanity,
+  ebike: (s) => s.ebike.owned,
+  groceries: (s) => s.groceries > 0,
+  classes: (s) => s.classes > 0,
+  ledger: (s) => s.ledger,
+  phone: (s) => s.phone.owned,
+};
+
+function drawDecor(ctx, room, list) {
+  const s = app.s;
+  const R = roomArt();
+  const hour = hourNow(s);
+  for (const d of room.decor) {
+    if (d.when && !DECOR_WHEN[d.when](s)) continue;
+    let sprite = R[d.art];
+    if (d.art === 'window') sprite = R.window[hour >= 19 ? 'night' : hour >= 17 ? 'dusk' : 'day'];
+    if (d.art === 'plant') sprite = R.plant[s.sanity < RULES.lowSanity ? 0 : s.sanity >= 60 ? 2 : 1];
+    if (d.base) list.push([d.base, () => ctx.drawImage(sprite, d.px, d.py)]);
+    else ctx.drawImage(sprite, d.px, d.py);
+  }
+}
+
+// 屋里的光：白天窗户照进来一块亮，傍晚发黄，晚上只有一盏灯
+function roomLight(ctx, room) {
+  const hour = hourNow(app.s);
+  const w = room.w * T;
+  const h = room.h * T;
+  if (hour < 19) {
+    ctx.fillStyle = hour >= 17 ? 'rgba(255, 170, 90, 0.16)' : 'rgba(255, 246, 205, 0.14)';
+    ctx.beginPath();
+    ctx.moveTo(18, 32);
+    ctx.lineTo(46, 32);
+    ctx.lineTo(84, 112);
+    ctx.lineTo(40, 112);
+    ctx.closePath();
+    ctx.fill();
+    if (hour >= 17) {
+      ctx.fillStyle = 'rgba(255, 150, 80, 0.07)';
+      ctx.fillRect(T, 0, w - 2 * T, h - T);
+    }
+    return;
+  }
+  // 中间一盏灯：越靠边越暗
+  const dim = ctx.createRadialGradient(w / 2, 74, 10, w / 2, 74, 104);
+  dim.addColorStop(0, 'rgba(40, 26, 30, 0.06)');
+  dim.addColorStop(0.55, 'rgba(26, 20, 48, 0.34)');
+  dim.addColorStop(1, 'rgba(16, 12, 40, 0.62)');
+  ctx.fillStyle = dim;
+  ctx.fillRect(T, 0, w - 2 * T, h - T);
+  const warm = ctx.createRadialGradient(w / 2, 74, 4, w / 2, 74, 70);
+  warm.addColorStop(0, 'rgba(255, 196, 110, 0.16)');
+  warm.addColorStop(1, 'rgba(255, 196, 110, 0)');
+  ctx.fillStyle = warm;
+  ctx.fillRect(T, 0, w - 2 * T, h - T);
+  // 桌上的台灯和电脑屏幕
+  ctx.fillStyle = 'rgba(255, 230, 160, 0.5)';
+  ctx.fillRect(75, 20, 3, 1);
+  ctx.fillStyle = 'rgba(160, 200, 240, 0.18)';
+  ctx.fillRect(60, 28, 18, 8);
+}
+
 function shadow(ctx, x, y) {
   ctx.fillStyle = 'rgba(43,36,55,0.25)';
   ctx.fillRect(Math.round(x) - 5, Math.round(y), 10, 2);
@@ -1125,7 +1194,7 @@ function draw() {
   let zoom = Math.max(2, Math.round(Math.sqrt((cw * ch) / tiles) / T));
   if (!inRoom) zoom = Math.max(zoom, Math.ceil(ch / (m.h * T)), Math.ceil(cw / (m.w * T)));
   // 出租屋很小，放大到占屏幕的大半
-  else zoom = Math.max(2, Math.floor(Math.min(cw / (m.w * T), ch / (m.h * T)) * 0.82));
+  else zoom = Math.max(2, Math.floor(Math.min(cw / (m.w * T), ch / (m.h * T)) * 0.9));
   const vw = cw / zoom;
   const vh = ch / zoom;
   const p = rt.p;
@@ -1151,9 +1220,14 @@ function draw() {
       const px = x * T;
       const py = y * T;
       if (inRoom) {
-        const floor = x >= 1 && y >= 2 && x < m.w - 1 && y < m.h - 1;
-        const wall = y === 1 && x >= 1 && x < m.w - 1;
-        ctx.drawImage(floor ? A.plank : wall ? A.roomWall : A.void, px, py);
+        const R = roomArt();
+        const inner = x >= 1 && x < m.w - 1;
+        let tile = R.dark;
+        if (inner && y >= 2 && y < m.h - 1) tile = x >= 6 && y <= 3 ? R.lino[hash(x, y) % 2] : R.floor[hash(x, y) % 6];
+        else if (inner && y === 0) tile = R.wallHi[hash(x, 3) % 4];
+        else if (inner && y === 1) tile = R.wallLo[x === 2 ? 1 : hash(x, 9) % 3 === 0 ? 2 : 0];
+        else if (x >= 0 && x < m.w && y >= 0 && y < m.h) tile = R.wallTop;
+        ctx.drawImage(tile, px, py);
         continue;
       }
       if (x < 0 || y < 0 || x >= m.w || y >= m.h) {
@@ -1202,13 +1276,14 @@ function draw() {
   const seen = (t) => t.x + t.fw + 1 >= x0 && t.x - 2 <= x1 && t.y + t.fh >= y0 && t.y - 8 <= y1;
   for (const t of m.things) {
     if (!seen(t)) continue;
-    const sprite = t.art === 'tree' ? A.tree[t.variant ?? 0] : A[t.art];
+    const sprite = t.art === 'tree' ? A.tree[t.variant ?? 0] : inRoom ? roomArt()[t.art] : A[t.art];
     if (!sprite) continue;
     const dx = Math.round((t.x + t.fw / 2) * T - sprite.width / 2);
     const dy = (t.y + t.fh) * T - sprite.height;
     if (t.flat) ctx.drawImage(sprite, dx, dy);
     else list.push([(t.y + t.fh) * T, () => ctx.drawImage(sprite, dx, dy)]);
   }
+  if (inRoom) drawDecor(ctx, m, list);
   if (!inRoom) {
     VENDING_SPOTS.slice(0, s.machines).forEach((v) => {
       const sprite = A.vending[frameNo];
@@ -1269,6 +1344,8 @@ function draw() {
       ctx.fillRect(px + ax, py + ay, bw, bh);
     }
   }
+
+  if (inRoom) roomLight(ctx, m);
 
   /* 天色 */
   ctx.setTransform(1, 0, 0, 1, 0, 0);
