@@ -435,6 +435,7 @@ function sleep(forced = false) {
     const report = endDay(s);
     wakeUp();
     save();
+    hud();
     layer(morningHtml(report, forced));
   }, 650);
 }
@@ -456,7 +457,7 @@ function dialog(title, body, buttons, stamp = '') {
 const lines = (list) => list.map((t) => `<p class="say">${t}</p>`).join('');
 
 function introHtml() {
-  return dialog('7:00', lines(INTRO) + '<p class="hint">出门左手边是便利店，再往右是快餐店。马路对面是公园。</p>', [['起床', 'close', 'primary']], '第 1 天');
+  return dialog('7:00', lines(INTRO) + '<p class="hint">出了楼门往右走，先是便利店，再是快餐店。马路对面是公园。</p>', [['起床', 'close', 'primary']], '第 1 天');
 }
 
 function sleepHtml() {
@@ -526,7 +527,7 @@ function billHtml(b) {
   if (!s.ledger) {
     return `<section class="review">
       <p class="stamp">第 ${b.month} 个月过完了</p>
-      <h3>交完房租，还剩 ${b.cash}${b.debt ? `，欠 ${b.debt}` : ''}</h3>
+      <h3>${b.bankrupt ? `房租没交上，欠 ${b.debt}` : b.borrowed ? `借了 ${b.borrowed} 才交上房租` : `交完房租，还剩 ${b.cash}`}</h3>
       <p>这个月的钱是怎么来的、花到哪儿去了，你说不上来。只知道月底又差不多见底。</p>
       ${entries(b.notes)}
     </section>`;
