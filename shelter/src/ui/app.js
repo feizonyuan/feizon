@@ -34,7 +34,7 @@ import {
 } from '../game/state.js';
 import { T, art } from '../game/art.js';
 import { roomArt } from '../game/roomart.js';
-import { WATER, PATH, PAVE, ROAD, ROAD_Y, CROSSINGS, HOME_DOOR, BUNK_DOOR, GURU, VENDING_SPOTS, key, buildStreet, buildRoom } from '../game/map.js';
+import { WATER, PATH, PAVE, ROAD, ROAD_Y, CROSSINGS, HOME_DOOR, BUNK_DOOR, GURU, VENDING_SPOTS, ROOM_ZONES, ROOM_PARTITION, key, buildStreet, buildRoom } from '../game/map.js';
 import { LESSONS, CHEN_IDLE, CHEN_DONE, INTRO, qiangLine, liliLine } from '../game/story.js';
 import { ICONS } from './icons.js';
 
@@ -146,7 +146,7 @@ function homeHtml() {
   const s = app.s;
   return `<div class="home">
     <header class="masthead">
-      <p class="stamp">城市边上的老街 · 十平米出租屋</p>
+      <p class="stamp">城市边上的老街 · 一套老旧的出租屋</p>
       <h1>躺平计划<span>现金流物语</span></h1>
       <p class="lede">没有文凭，没有手艺，没有人托底。你唯一能拿去换钱的，是自己的时间。这个游戏没有“奋斗”或“躺平”的路线可选，只有每一天：这十六个钟头，你拿去做什么。</p>
     </header>
@@ -384,6 +384,8 @@ function findTarget() {
       return make(s.groceries ? '做饭' : '灶台（没有食材）', () => spend(cook, '自己做了顿饭'));
     case 'desk':
       return make('坐下发会儿呆', () => spend(sitBench, '对着窗户坐了一会儿'));
+    case 'sofa':
+      return make('在沙发上瘫一会儿', () => spend(sitBench, '在沙发上瘫了一会儿'));
     case 'fridge':
       return make('看冰箱', () => toast(s.groceries ? `冰箱里有 ${s.groceries} 份食材。门上贴着一张便签：记得交房租。` : '冰箱是空的，只有半瓶老干妈。门上贴着一张便签：记得交房租。'));
     case 'look':
@@ -1129,13 +1131,15 @@ function roomLight(ctx, room) {
   const h = room.h * T;
   if (hour < 19) {
     ctx.fillStyle = hour >= 17 ? 'rgba(255, 170, 90, 0.16)' : 'rgba(255, 246, 205, 0.14)';
-    ctx.beginPath();
-    ctx.moveTo(18, 32);
-    ctx.lineTo(46, 32);
-    ctx.lineTo(84, 112);
-    ctx.lineTo(40, 112);
-    ctx.closePath();
-    ctx.fill();
+    for (const x of [18, 192]) {
+      ctx.beginPath();
+      ctx.moveTo(x, 32);
+      ctx.lineTo(x + 28, 32);
+      ctx.lineTo(x + 66, 120);
+      ctx.lineTo(x + 22, 120);
+      ctx.closePath();
+      ctx.fill();
+    }
     if (hour >= 17) {
       ctx.fillStyle = 'rgba(255, 150, 80, 0.07)';
       ctx.fillRect(T, 0, w - 2 * T, h - T);
@@ -1143,13 +1147,13 @@ function roomLight(ctx, room) {
     return;
   }
   // 中间一盏灯：越靠边越暗
-  const dim = ctx.createRadialGradient(w / 2, 74, 10, w / 2, 74, 104);
+  const dim = ctx.createRadialGradient(w / 2 - 20, 96, 14, w / 2 - 20, 96, 190);
   dim.addColorStop(0, 'rgba(40, 26, 30, 0.06)');
   dim.addColorStop(0.55, 'rgba(26, 20, 48, 0.34)');
   dim.addColorStop(1, 'rgba(16, 12, 40, 0.62)');
   ctx.fillStyle = dim;
   ctx.fillRect(T, 0, w - 2 * T, h - T);
-  const warm = ctx.createRadialGradient(w / 2, 74, 4, w / 2, 74, 70);
+  const warm = ctx.createRadialGradient(w / 2 - 20, 96, 4, w / 2 - 20, 96, 110);
   warm.addColorStop(0, 'rgba(255, 196, 110, 0.16)');
   warm.addColorStop(1, 'rgba(255, 196, 110, 0)');
   ctx.fillStyle = warm;
@@ -1193,8 +1197,8 @@ function draw() {
   const tiles = canvas.clientWidth > 700 ? 420 : 190;
   let zoom = Math.max(2, Math.round(Math.sqrt((cw * ch) / tiles) / T));
   if (!inRoom) zoom = Math.max(zoom, Math.ceil(ch / (m.h * T)), Math.ceil(cw / (m.w * T)));
-  // 出租屋很小，放大到占屏幕的大半
-  else zoom = Math.max(2, Math.floor(Math.min(cw / (m.w * T), ch / (m.h * T)) * 0.9));
+  // 屋里：放大到铺满屏幕，镜头跟着人走；竖屏时至少看得到 7 格宽
+  else zoom = Math.max(2, Math.min(Math.ceil(Math.max(cw / (m.w * T), ch / (m.h * T))), Math.floor(cw / (7 * T))));
   const vw = cw / zoom;
   const vh = ch / zoom;
   const p = rt.p;
@@ -1223,9 +1227,14 @@ function draw() {
         const R = roomArt();
         const inner = x >= 1 && x < m.w - 1;
         let tile = R.dark;
-        if (inner && y >= 2 && y < m.h - 1) tile = x >= 6 && y <= 3 ? R.lino[hash(x, y) % 2] : R.floor[hash(x, y) % 6];
-        else if (inner && y === 0) tile = R.wallHi[hash(x, 3) % 4];
-        else if (inner && y === 1) tile = R.wallLo[x === 2 ? 1 : hash(x, 9) % 3 === 0 ? 2 : 0];
+        const within = (z) => x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1;
+        const bathCol = x >= ROOM_ZONES.bath.x0 && x <= ROOM_ZONES.bath.x1;
+        if (inner && y >= 2 && y < m.h - 1) {
+          if (ROOM_PARTITION.some(([px2, py2]) => px2 === x && py2 === y)) tile = y === 6 ? R.partition : R.wallTop;
+          else if (within(ROOM_ZONES.bath)) tile = R.bathTile;
+          else tile = within(ROOM_ZONES.kitchen) ? R.lino[hash(x, y) % 2] : R.floor[hash(x, y) % 6];
+        } else if (inner && y === 0) tile = bathCol ? R.tileWall[0] : x === 14 ? R.wallTop : R.wallHi[hash(x, 3) % 4];
+        else if (inner && y === 1) tile = bathCol ? R.tileWall[1] : x === 14 ? R.wallTop : R.wallLo[x === 2 || x === 6 ? 1 : hash(x, 9) % 3 === 0 ? 2 : 0];
         else if (x >= 0 && x < m.w && y >= 0 && y < m.h) tile = R.wallTop;
         ctx.drawImage(tile, px, py);
         continue;

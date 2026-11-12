@@ -1,4 +1,4 @@
-// 出租屋里的像素画：十平米，住了一阵子的样子。
+// 出租屋里的像素画：一套老旧的小套间，住了一阵子的样子。
 import { T, C, make } from './art.js';
 
 function rng(seed) {
@@ -605,6 +605,194 @@ const toolbox = make(15, 10, (r) => {
   r(C.yellow, 6, 5, 3, 2);
 });
 
+/* ---------- 套间里多出来的东西 ---------- */
+
+const bathTile = make(
+  T,
+  T,
+  (r) => {
+    r('#cfe0e4', 0, 0, T, T);
+    for (let i = 0; i < T; i += 4) {
+      r('#b4c9cf', i, 0, 1, T);
+      r('#b4c9cf', 0, i, T, 1);
+    }
+    r('#e2eef0', 5, 5, 2, 2);
+    r('#e2eef0', 13, 9, 2, 2);
+  },
+  false,
+);
+
+const tileWall = (low) =>
+  make(
+    T,
+    T,
+    (r) => {
+      r('#e9eef0', 0, 0, T, T);
+      for (let x = 0; x < T; x += 8) r('#c9d4d8', x, 0, 1, T);
+      r('#c9d4d8', 0, 7, T, 1);
+      r('#c9d4d8', 0, 15, T, 1);
+      if (low) {
+        r('#8fb7c4', 0, 4, T, 2);
+        r('#a9a59a', 3, 11, 4, 2); // 水垢
+      }
+    },
+    false,
+  );
+
+// 隔墙：上面是墙顶，下面露出一截墙面
+const partition = make(
+  T,
+  T,
+  (r) => {
+    r(W.wallTop, 0, 0, T, T);
+    r(W.wallTopL, 0, 0, T, 2);
+    r(W.plasterD, 0, 10, T, 6);
+    r(W.board, 0, 14, T, 2);
+  },
+  false,
+);
+
+const bookshelf = make(T, 46, (r) => {
+  r(W.boardD, 0, 0, 16, 45);
+  r('#3a3346', 2, 2, 12, 41);
+  const rows = [
+    [C.red, C.blue, C.cream, C.green, C.yellow],
+    [C.blueD, C.cream, C.pink, C.red],
+    [C.green, C.yellow, C.blue, C.cream, C.redD],
+  ];
+  rows.forEach((books, i) => {
+    const y = 3 + i * 11;
+    let x = 2;
+    books.forEach((c, j) => {
+      const w = j % 2 ? 2 : 3;
+      const h = 8 - (j % 3);
+      r(c, x, y + 8 - h, w, h);
+      x += w;
+    });
+    r(W.board, 1, y + 8, 14, 2);
+  });
+  // 最下面一层：一个纸盒和游戏手柄
+  r(W.card, 3, 37, 6, 5);
+  r(C.night, 10, 39, 4, 3);
+  r(C.red, 11, 40, 1, 1);
+  r(W.board, 1, 42, 14, 2);
+});
+
+const sofa = make(32, 26, (r) => {
+  // 靠背在下，朝着屋子里面坐
+  r('#5f7a66', 0, 2, 32, 22);
+  r('#4c6453', 0, 20, 32, 4);
+  r('#6f8d77', 3, 4, 12, 11);
+  r('#6f8d77', 17, 4, 12, 11);
+  r('#4c6453', 15, 4, 2, 12);
+  r('#4c6453', 0, 2, 3, 16);
+  r('#4c6453', 29, 2, 3, 16);
+  r('#7fa088', 4, 5, 6, 1);
+  r('#7fa088', 18, 5, 6, 1);
+  // 一个抱枕，一块补丁
+  r(C.yellow, 20, 7, 7, 6);
+  r(C.yellowD, 20, 12, 7, 1);
+  r('#8d6a4a', 6, 10, 4, 3);
+  r(C.night, 1, 24, 3, 2);
+  r(C.night, 28, 24, 3, 2);
+});
+
+const fan = make(T, 36, (r, e) => {
+  e(C.tinD, 8, 9, 7.5, 8);
+  e('#dfe6e8', 8, 9, 6, 6.5);
+  r(C.tinD, 7, 3, 2, 12);
+  r(C.tinD, 2, 8, 12, 2);
+  e(C.blue, 8, 9, 2, 2);
+  r(C.tinD, 7, 17, 2, 15);
+  r(C.night, 3, 32, 10, 3);
+  r(C.white, 6, 22, 4, 3);
+});
+
+const toilet = make(T, 26, (r, e) => {
+  r(C.white, 3, 0, 10, 9);
+  r(C.creamD, 3, 7, 10, 2);
+  r(C.tinD, 11, 2, 1, 2);
+  e(C.creamD, 8, 17, 6, 8);
+  e(C.white, 8, 16, 5.5, 7);
+  e('#cfe0e4', 8, 16, 3, 4.5);
+});
+
+const basin = make(T, 26, (r, e) => {
+  r(C.tinD, 7, 0, 2, 5);
+  r(C.tinD, 6, 0, 4, 1);
+  e(C.creamD, 8, 9, 7.5, 5);
+  e(C.white, 8, 8, 7, 4.5);
+  e('#cfe0e4', 8, 8, 4, 2.5);
+  r(C.white, 5, 12, 6, 12);
+  r(C.creamD, 5, 22, 6, 2);
+  // 牙刷杯
+  r(C.blue, 13, 2, 2, 4);
+  r(C.red, 13, 0, 1, 2);
+});
+
+const shower = make(32, 42, (r) => {
+  // 花洒和水管
+  r(C.tinD, 26, 0, 2, 24);
+  r(C.tinD, 18, 0, 10, 2);
+  r(C.tinD, 16, 2, 6, 2);
+  r(C.red, 25, 22, 2, 2);
+  r(C.blue, 28, 22, 2, 2);
+  // 浴帘
+  r(C.tinD, 0, 6, 32, 1);
+  for (let x = 0; x < 14; x += 2) r(x % 4 ? '#9fc7d6' : '#b9dbe6', x, 7, 2, 30);
+  r('#8ab3c2', 0, 35, 14, 2);
+  // 地上的塑料盆和拖鞋
+  r(C.pink, 16, 32, 10, 6);
+  r(C.pinkD, 16, 36, 10, 2);
+  r(C.blue, 27, 36, 4, 3);
+  r(C.blue, 27, 31, 4, 3);
+});
+
+const washer = make(T, 30, (r, e) => {
+  r(C.white, 1, 2, 14, 27);
+  r(C.creamD, 1, 2, 14, 5);
+  r(C.night, 3, 4, 4, 1);
+  r(C.green, 12, 4, 1, 1);
+  r(C.red, 10, 4, 1, 1);
+  e(C.tinD, 8, 17, 5.5, 5.5);
+  e('#4f6f86', 8, 17, 4, 4);
+  r('#7fa3bb', 6, 15, 2, 1);
+  r(C.creamD, 1, 27, 14, 2);
+  // 上面搭着一条毛巾
+  r(C.yellow, 2, 0, 9, 3);
+});
+
+const mirror = make(10, 13, (r) => {
+  r(C.tinD, 0, 0, 10, 13);
+  r('#b9dbe6', 1, 1, 8, 11);
+  r(C.white, 2, 2, 2, 5);
+  r('#9fc7d6', 5, 6, 3, 4);
+});
+
+const mop = make(12, 26, (r) => {
+  r(W.boardD, 8, 0, 1, 18);
+  r(C.creamD, 6, 17, 5, 5);
+  r(C.cream, 6, 17, 5, 2);
+  r(C.blue, 0, 15, 7, 10);
+  r(C.blueD, 0, 23, 7, 2);
+  r('#7fa3bb', 1, 16, 5, 2);
+});
+
+const hooks = make(22, 16, (r) => {
+  r(W.boardD, 0, 0, 22, 3);
+  r(C.tinD, 3, 3, 1, 2);
+  r(C.tinD, 11, 3, 1, 2);
+  r(C.tinD, 18, 3, 1, 2);
+  // 一件外套，一个帆布包
+  r('#4a5f86', 0, 4, 7, 12);
+  r('#3d5072', 0, 14, 7, 2);
+  r('#3d5072', 3, 4, 1, 10);
+  r(C.cream, 15, 6, 7, 8);
+  r(C.creamD, 15, 12, 7, 2);
+  r(C.creamD, 17, 4, 1, 3);
+  r(C.creamD, 20, 4, 1, 3);
+});
+
 let cache = null;
 
 export function roomArt() {
@@ -643,6 +831,19 @@ export function roomArt() {
     noodles,
     helmet,
     toolbox,
+    bathTile,
+    tileWall: [tileWall(false), tileWall(true)],
+    partition,
+    bookshelf,
+    sofa,
+    fan,
+    toilet,
+    basin,
+    shower,
+    washer,
+    mirror,
+    mop,
+    hooks,
   };
   return cache;
 }
