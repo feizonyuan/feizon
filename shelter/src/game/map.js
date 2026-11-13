@@ -241,7 +241,7 @@ export function buildRoom() {
   put('bed', 1, 2, 1, 2, { type: 'bed', label: '睡觉' });
   put('nightstand', 2, 2, 1, 1, say('床头柜', '闹钟定在 7:00。旁边是半杯昨天的水。'));
   put('desk', 3, 2, 2, 1, { type: 'desk', label: '坐下发会儿呆' });
-  put('bookshelf', 5, 2, 1, 1, say('书架', '几本高中课本、几本别人送的小说，最下面一层是落了灰的游戏手柄。'));
+  put('bookshelf', 5, 2, 1, 1, { type: 'books', label: '翻本闲书' });
   put('wardrobe', 7, 2, 1, 1, say('衣柜', '三件 T 恤、两条裤子、一件冬天的外套。柜顶的编织袋是搬来那天用的。'));
   put('fridge', 9, 2, 1, 1, { type: 'fridge', label: '看冰箱' });
   put('kitchen', 10, 2, 2, 1, { type: 'stove', label: '做饭' });
@@ -250,7 +250,7 @@ export function buildRoom() {
   /* 卫生间 */
   put('toilet', 15, 2, 1, 1, say('马桶', '水箱有点漏，夜里能听见滴水声。'));
   put('basin', 16, 2, 1, 1, say('洗手池', '镜子里的人看着有点累。'));
-  put('shower', 17, 2, 2, 1, say('淋浴', '热水要放两分钟才来。房东说热水器“还能用”。'));
+  put('shower', 17, 2, 2, 1, { type: 'shower', label: '洗个澡' });
 
   /* 起居 */
   put('lowTable', 8, 5, 1, 1, say('小矮桌', '吃饭、放东西都在这张桌上。'));
@@ -292,5 +292,98 @@ export function buildRoom() {
 
   inter.set(key(9, 11), { type: 'exit', label: '出门' });
   inter.set(key(10, 11), { type: 'exit', label: '出门' });
-  return { w, h, solid, things, decor, inter, npcs: [], spawn: { x: 10, y: 10.4 }, bedside: { x: 2.5, y: 3.6 } };
+  return { kind: 'home', w, h, solid, things, decor, inter, npcs: [], spawn: { x: 10, y: 10.4 }, bedside: { x: 2.5, y: 3.6 } };
+}
+
+/* ---------- 便利店、快餐店、夜校教室 ---------- */
+
+// 从街上进各个门之后，出来时站的位置
+export const DOORS = {
+  home: { x: 7, y: 9.5 },
+  store: { x: 18, y: 9.5 },
+  diner: { x: 29.5, y: 9.5 },
+  school: { x: 54.5, y: 9.5 },
+};
+
+export function buildInterior(kind) {
+  const w = 20;
+  const h = 12;
+  const solid = new Uint8Array(w * h);
+  const inter = new Map();
+  const things = [];
+  const decor = [{ art: 'doorway', px: 152, py: 176 }];
+  const npcs = [];
+  const fill = (x0, y0, x1, y1) => {
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) solid[y * w + x] = 1;
+  };
+  fill(0, 0, w - 1, 1);
+  fill(0, h - 1, w - 1, h - 1);
+  fill(0, 0, 0, h - 1);
+  fill(w - 1, 0, w - 1, h - 1);
+  const put = (art, x, y, fw, fh, what, extra = {}) => {
+    things.push({ art, x, y, fw, fh, ...extra });
+    fill(x, y, x + fw - 1, y + fh - 1);
+    if (what) for (let j = y; j < y + fh; j++) for (let i = x; i < x + fw; i++) inter.set(key(i, j), what);
+  };
+  const person = (id, x, y, what) => {
+    npcs.push({ id, x, y, face: 0 });
+    fill(x, y, x, y);
+    inter.set(key(x, y), what);
+  };
+  const say = (label, text) => ({ type: 'look', label, text });
+
+  if (kind === 'store') {
+    const cold = say('冷柜', '饮料、酸奶、速冻水饺。最便宜的矿泉水 2 块。');
+    put('cooler', 1, 2, 2, 1, cold);
+    put('cooler', 3, 2, 2, 1, cold);
+    put('cooler', 5, 2, 2, 1, cold);
+    const goods = [
+      say('货架', '泡面、火腿肠、榨菜。月底的时候这一排卖得最快。'),
+      say('货架', '薯片、巧克力、话梅。包装都比里面的东西大。'),
+      say('货架', '牙膏、纸巾、洗衣液。日子过下去总得用。'),
+    ];
+    [
+      [2, 5],
+      [5, 5],
+      [8, 5],
+      [2, 8],
+      [5, 8],
+      [8, 8],
+      [14, 8],
+    ].forEach(([x, y], i) => put('shelf', x, y, 2, 1, goods[i % 3], { variant: i % 3 }));
+    const till = { type: 'clerk', label: '找老板' };
+    put('register', 14, 4, 3, 1, till);
+    person('clerk', 15, 3, till);
+    put('atm', 18, 2, 1, 1, say('取款机', '屏幕上滚着一行字：闪电贷，三秒到账。'));
+  } else if (kind === 'diner') {
+    const boss = { type: 'manager', label: '找店长' };
+    put('dinerCounter', 8, 4, 4, 1, boss);
+    person('manager', 9, 3, boss);
+    const fry = say('后厨', '油锅一直开着。站在这儿一班下来，衣服上全是油烟味。');
+    put('fryer', 5, 2, 2, 1, fry);
+    put('fryer', 13, 2, 2, 1, fry);
+    const seat = say('餐桌', '上一桌的托盘还没收。等会儿上班的时候，这是你的活。');
+    [
+      [2, 6],
+      [2, 9],
+      [15, 6],
+      [15, 9],
+      [12, 8],
+    ].forEach(([x, y]) => put('dinerTable', x, y, 2, 1, seat));
+    decor.push({ art: 'menuBoard', px: 128, py: 5 });
+  } else {
+    const teach = { type: 'teacher', label: '找老师' };
+    put('teacherDesk', 8, 2, 2, 1, teach);
+    person('teacher', 11, 2, teach);
+    for (const y of [5, 8]) for (const x of [5, 8, 11, 14]) put('studentDesk', x, y, 1, 1, { type: 'teacher', label: '坐下听课' });
+    put('toolRack', 1, 2, 1, 1, say('工具架', '万用表、电烙铁、几把磨秃了的螺丝刀。'));
+    put('toolRack', 18, 2, 1, 1, say('零件柜', '拆下来的旧电机、电容和一抽屉分不清型号的螺丝。'));
+    decor.push({ art: 'blackboard', px: 56, py: 3 });
+    decor.push({ art: 'noticeBoard', px: 208, py: 4 });
+    for (let x = 13; x <= 15; x++) inter.set(key(x, 1), { type: 'jobs', label: '看公告栏' });
+  }
+
+  inter.set(key(9, 11), { type: 'exit', label: '出门' });
+  inter.set(key(10, 11), { type: 'exit', label: '出门' });
+  return { kind, w, h, solid, things, decor, inter, npcs, spawn: { x: 10, y: 10.4 } };
 }

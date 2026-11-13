@@ -8,18 +8,34 @@ import {
   skilled,
   loanLimit,
   clockText,
+  eventToday,
+  hungry,
+  advance,
+  energyCost,
   work,
   repairJob,
   study,
+  writeGuide,
+  bentoPrice,
   buyBento,
   buyGroceries,
   cook,
   buyTea,
   sitBench,
+  restHome,
+  readBook,
+  shower,
   fishWithChen,
+  treat,
+  canTreat,
   lesson,
+  lessonReady,
   buyVending,
   sellVending,
+  buyFund,
+  sellFund,
+  fundValue,
+  fundDividend,
   takePhone,
   takeEbike,
   borrow,
@@ -34,11 +50,13 @@ import {
 } from '../game/state.js';
 import { T, art } from '../game/art.js';
 import { roomArt } from '../game/roomart.js';
-import { WATER, PATH, PAVE, ROAD, ROAD_Y, CROSSINGS, HOME_DOOR, BUNK_DOOR, GURU, VENDING_SPOTS, ROOM_ZONES, ROOM_PARTITION, key, buildStreet, buildRoom } from '../game/map.js';
+import { shopArt } from '../game/shopart.js';
+import { playOrders, playTiming, stopMinigame } from './minigame.js';
+import { WATER, PATH, PAVE, ROAD, ROAD_Y, CROSSINGS, HOME_DOOR, BUNK_DOOR, GURU, VENDING_SPOTS, ROOM_ZONES, ROOM_PARTITION, DOORS, key, buildStreet, buildRoom, buildInterior } from '../game/map.js';
 import { LESSONS, CHEN_IDLE, CHEN_DONE, INTRO, qiangLine, liliLine } from '../game/story.js';
 import { ICONS } from './icons.js';
 
-const SAVE_KEY = 'plan.save.v2';
+const SAVE_KEY = 'plan.save.v3';
 const root = document.getElementById('app');
 
 const store = {
@@ -80,6 +98,9 @@ const rt = {
   last: 0,
   raf: 0,
   hudAt: 0,
+  meterAt: 0,
+  maps: null,
+  inside: null,
   saveAt: 0,
   view: { cx: 0, cy: 0, zoom: 3, w: 0, h: 0 },
 };
@@ -130,7 +151,7 @@ function save() {
 
 function boot(data = {}) {
   app.s = data.s ?? store.read(SAVE_KEY);
-  if (app.s && app.s.v !== 2) app.s = null;
+  if (app.s && app.s.v !== 3) app.s = null;
   show('home');
 }
 
@@ -184,11 +205,13 @@ function mountGame() {
   </div>`;
   rt.street = buildStreet(s.seed);
   rt.room = buildRoom();
+  rt.maps = { home: rt.room, store: buildInterior('store'), diner: buildInterior('diner'), school: buildInterior('school') };
+  rt.inside = rt.room;
   rt.floats = [];
   rt.keys.clear();
   rt.stick = null;
   rt.cars = [0, 1, 2, 3, 4].map((i) => ({ x: (i * 17) % 66, lane: i % 2, kind: i % 4, speed: 5 + (i % 3) }));
-  rt.walkers = [0, 1, 2].map((i) => ({ x: 6 + i * 21, y: i === 1 ? 16.6 : 10.6, dir: i % 2 ? 1 : -1, kind: i, step: 0, pause: 0 }));
+  rt.walkers = [0, 1, 2].map((i) => ({ x: 6 + i * 21, y: i === 1 ? 16.6 : 11.3, dir: i % 2 ? 1 : -1, kind: i, step: 0, pause: 0 }));
   if (s.minutes === 0) wakeUp();
   else goOutside();
   bindCanvas(document.getElementById('view'));
@@ -203,6 +226,7 @@ function mountGame() {
 function wakeUp() {
   if (app.s.home === 'room') {
     rt.where = 'in';
+    rt.inside = rt.room;
     rt.p.x = rt.room.bedside.x;
     rt.p.y = rt.room.bedside.y;
     rt.p.dir = 0;
@@ -215,26 +239,45 @@ function wakeUp() {
   rt.hover = null;
 }
 
+// 从屋里出来，站到那扇门前
 function goOutside() {
+  const door = rt.where === 'in' ? DOORS[rt.inside.kind] : HOME_DOOR;
   rt.where = 'out';
-  rt.p.x = HOME_DOOR.x;
-  rt.p.y = HOME_DOOR.y;
+  rt.p.x = door.x;
+  rt.p.y = door.y;
   rt.p.dir = 0;
   rt.hover = null;
 }
 
-function enterRoom() {
+function enter(kind) {
   rt.where = 'in';
-  rt.p.x = rt.room.spawn.x;
-  rt.p.y = rt.room.spawn.y;
+  rt.inside = rt.maps[kind];
+  rt.p.x = rt.inside.spawn.x;
+  rt.p.y = rt.inside.spawn.y;
   rt.p.dir = 1;
   rt.hover = null;
 }
+
+const enterRoom = () => enter('home');
 
 /* ---------- HUD ---------- */
 
 function meter(label, value, cls) {
   return `<div class="meter ${cls} ${value < 30 ? 'low' : ''}"><span>${label}</span><div><i style="width:${Math.round(value)}%"></i></div></div>`;
+}
+
+// 给没试过的事一点提示。只说“有这么个地方”，不说该不该去。
+function nextIdea(s) {
+  const seen = s.seen;
+  if (!seen.work) return '楼下往右的阿福快餐在招小时工';
+  if (!seen.chen) return '马路对面公园的池塘边，有个天天钓鱼的大爷';
+  if (!seen.cook) return '便利店有食材卖，回家自己做比便当便宜';
+  if (s.sanity < RULES.lowSanity && !seen.rest) return '公园的长椅、家里的沙发都不要钱';
+  if (!seen.study) return '街东头的社区夜校在招生';
+  if (skilled(s) && !seen.repair) return '夜校教室的公告栏上可以接维修单了';
+  if (skilled(s) && !seen.guide) return '学会的东西，可以在家里的书桌上写成教程';
+  if (s.ledger && !seen.asset && s.cash >= RULES.vending.cost) return '便利店老板好像想找人合伙摆售货机';
+  return null;
 }
 
 // 画面的鲜艳程度：跟着心力和“被动收入盖住固定开销的比例”走。
@@ -251,12 +294,17 @@ function hud() {
   const fixed = fixedCosts(s);
   const toBill = daysToBill(s);
   const short = s.cash < fixed.total - fixed.interest;
+  const today = eventToday(s);
+  const idea = nextIdea(s);
   left.innerHTML = `
     <div class="when"><b>第 ${s.day} 天</b><span id="clock">${clockText(s)}</span></div>
     <div class="purse"><img alt="" src="${art().coin.toDataURL()}"><b>${s.cash}</b>${s.debt ? `<span class="owe">欠 ${s.debt}</span>` : ''}</div>
-    <div class="rentline ${toBill <= 2 && short ? 'warn' : ''}">${toBill === 1 ? '明早' : `${toBill} 天后`}是账单日，要付 ${fixed.total - fixed.interest}</div>`;
+    <div class="rentline ${toBill <= 2 && short ? 'warn' : ''}">${toBill === 1 ? '明早' : `${toBill} 天后`}是账单日，要付 ${fixed.total - fixed.interest}</div>
+    ${today.name ? `<div class="todayline"><b>今天</b>${today.name}</div>` : ''}
+    ${idea ? `<div class="idealine"><b>还没试过</b>${idea}</div>` : ''}`;
   document.getElementById('hud-r').innerHTML = `
     ${meter('体力', s.energy, 'en')}${meter('饱食', s.fullness, 'fo')}${meter('心力', s.sanity, 'mo')}
+    ${hungry(s) ? '<div class="pantry bad">饿着，干活更费体力</div>' : ''}
     ${s.groceries ? `<div class="pantry">食材 ×${s.groceries}</div>` : ''}
     <div class="hud-btns">
       <button class="btn small" data-act="phone">手机</button>
@@ -308,7 +356,8 @@ function spend(fn, title, after) {
   if (s.cash !== before.cash) parts.push(`${signed(s.cash - before.cash)} 元`);
   if (s.energy !== before.energy) parts.push(`体力 ${signed(s.energy - before.energy)}`);
   if (s.sanity !== before.sanity) parts.push(`心力 ${signed(s.sanity - before.sanity)}`);
-  if (s.fullness !== before.fullness) parts.push(`饱食 ${signed(s.fullness - before.fullness)}`);
+  const fed = Math.round(s.fullness - before.fullness);
+  if (fed >= 1) parts.push(`饱食 ${signed(fed)}`);
   const summary = parts.join(' · ');
   save();
   if (hours >= 1) {
@@ -328,9 +377,23 @@ function spend(fn, title, after) {
   return true;
 }
 
+const host = () => document.getElementById('layer');
+
+// 先在副本上试一下这件事现在能不能做；能做才开始小操作，做完再真正记账。
+function attempt(fn, startGame, finish) {
+  const error = fn(structuredClone(app.s));
+  if (typeof error === 'string') {
+    sfx('bad');
+    return toast(error);
+  }
+  rt.paused = true;
+  rt.keys.clear();
+  startGame((score) => finish(score));
+}
+
 /* ---------- 地图查询 ---------- */
 
-const here = () => (rt.where === 'in' ? rt.room : rt.street);
+const here = () => (rt.where === 'in' ? rt.inside : rt.street);
 const guruHere = () => scamVisible(app.s);
 
 function solidAt(x, y) {
@@ -354,9 +417,16 @@ function blocked(x, y) {
   return false;
 }
 
+// 车是实的：走不进车身里
+function carAt(x, y) {
+  if (rt.where !== 'out') return false;
+  return rt.cars.some((c) => Math.abs(x - c.x) < 1.45 && Math.abs(y - (c.lane ? ROAD_Y[0] + 2.6 : ROAD_Y[0] + 0.9)) < 0.75);
+}
+
 function moveBody(b, dx, dy) {
-  if (dx && !blocked(b.x + dx, b.y)) b.x += dx;
-  if (dy && !blocked(b.x, b.y + dy)) b.y += dy;
+  const free = (x, y) => !blocked(x, y) && (!carAt(x, y) || carAt(b.x, b.y));
+  if (dx && free(b.x + dx, b.y)) b.x += dx;
+  if (dy && free(b.x, b.y + dy)) b.y += dy;
 }
 
 function facingTile() {
@@ -383,9 +453,22 @@ function findTarget() {
     case 'stove':
       return make(s.groceries ? '做饭' : '灶台（没有食材）', () => spend(cook, '自己做了顿饭'));
     case 'desk':
-      return make('坐下发会儿呆', () => spend(sitBench, '对着窗户坐了一会儿'));
+      if (skilled(s) && s.guides < RULES.guide.max) return make('写维修教程', () => layer(guideHtml()));
+      return make('坐下发会儿呆', () => spend(restHome, '对着窗户坐了一会儿'));
     case 'sofa':
-      return make('在沙发上瘫一会儿', () => spend(sitBench, '在沙发上瘫了一会儿'));
+      return make('在沙发上瘫一会儿', () => spend(restHome, '在沙发上瘫了一会儿'));
+    case 'books':
+      return make('翻本闲书', () => spend(readBook, '靠着书架翻了一会儿小说'));
+    case 'shower':
+      return make(s.today.used.shower ? '淋浴（今天洗过了）' : '洗个澡', () => spend(shower, '洗了个热水澡'));
+    case 'clerk':
+      return make('找老板', () => layer(sheet(storeSheet())));
+    case 'manager':
+      return make('找店长', () => layer(dinerHtml()));
+    case 'teacher':
+      return make(it.label, () => layer(schoolHtml()));
+    case 'jobs':
+      return make('看公告栏', () => (skilled(s) ? layer(schoolHtml()) : toast('公告栏上贴满了报修的条子。等你学完了，这些活都能接。')));
     case 'fridge':
       return make('看冰箱', () => toast(s.groceries ? `冰箱里有 ${s.groceries} 份食材。门上贴着一张便签：记得交房租。` : '冰箱是空的，只有半瓶老干妈。门上贴着一张便签：记得交房租。'));
     case 'look':
@@ -397,13 +480,13 @@ function findTarget() {
     case 'bunk':
       return s.home === 'bunk' ? make('回床位睡觉', () => layer(sleepHtml())) : make('床位房', () => toast('八个人一间，按天收钱。门口的人打量了你一眼。希望你用不上这儿。'));
     case 'store':
-      return make('进便利店', () => layer(sheet(storeSheet())));
+      return make('进便利店', () => enter('store'));
     case 'diner':
-      return make('进快餐店', () => layer(dinerHtml()));
+      return make('进快餐店', () => enter('diner'));
     case 'tea':
       return make(s.sanity < RULES.lowSanity ? '来一杯！' : '买奶茶', () => layer(teaHtml()));
     case 'school':
-      return make('进夜校', () => layer(schoolHtml()));
+      return make('进夜校', () => enter('school'));
     case 'bench':
       return make('坐一会儿', () => spend(sitBench, '在长椅上坐了一会儿'));
     case 'pond':
@@ -486,7 +569,7 @@ function flowRows(list, sign) {
   if (!list.length) return `<li class="none">${sign > 0 ? '还没有每个月往里流钱的东西' : '没有每个月往外流钱的东西'}</li>`;
   return list
     .map(
-      (a) => `<li><span>${a.name}${a.left ? `<small>还剩 ${a.left} 期</small>` : ''}${a.doubt ? '<small>他说的</small>' : ''}</span>
+      (a) => `<li><span>${a.name}${a.left ? `<small>还剩 ${a.left} 期</small>` : ''}${a.doubt ? '<small>他说的</small>' : ''}${a.made ? '<small>花时间做出来的</small>' : ''}${a.liquid ? `<small>值 ${a.value}，随时能卖</small>` : ''}</span>
         <b class="${a.flow >= 0 ? 'good' : 'bad'}">每月 ${signed(a.flow)}</b></li>`,
     )
     .join('');
@@ -505,6 +588,7 @@ const HOUR_KINDS = [
   ['rest', '歇着', 'h-rest'],
   ['fun', '花钱找乐子', 'h-fun'],
   ['chores', '吃饭做饭', 'h-chores'],
+  ['build', '做自己的东西', 'h-build'],
 ];
 
 function hoursHtml(hours, days) {
@@ -538,7 +622,7 @@ function billHtml(b) {
     <p class="stamp">第 ${b.month} 个月的账</p>
     <h3 class="${b.net >= 0 ? 'pos' : 'neg'}">这个月净${b.net >= 0 ? '剩' : '亏'} ${Math.abs(b.net)}</h3>
     <dl class="tally">
-      ${row('快餐店的工钱', i.wage, 'good')}${row('修东西挣的', i.repair, 'good')}${row('售货机自己挣的', i.passive, 'good')}${row('稳盈宝的“分红”', i.scam, 'good')}
+      ${row('快餐店的工钱', i.wage, 'good')}${row('修东西挣的', i.repair, 'good')}${row('不干活也进来的', i.passive, 'good')}${row('稳盈宝的“分红”', i.scam, 'good')}
       ${row('房租', x.rent, 'bad')}${row('分期还款', x.installments, 'bad')}${row('电动车充电保养', x.upkeep, 'bad')}${row('闪电贷利息', x.interest, 'bad')}
       ${row('吃饭', x.food, 'bad')}${row('奶茶', x.fun, 'bad')}${row('学费', x.study, 'bad')}${row('看病', x.medical, 'bad')}
     </dl>
@@ -557,7 +641,7 @@ function morningHtml(report, forced) {
   const b = report.bill;
   const won = report.won
     ? `<section class="review free"><p class="stamp">连续三个月</p><h3>你把时间赎回来了</h3>
-        <p>售货机每个月自己挣的钱，已经连续三个月盖过了你不得不花的钱。从今天起，闹钟可以关了。去不去上班，由你定。</p>
+        <p>不用你干活也会进来的钱，已经连续三个月盖过了你不得不花的钱。从今天起，闹钟可以关了。去不去上班，由你定。</p>
         <p class="real">这不等于有很多钱。它的意思是：你不必再为了活下去而出卖时间。日子还在继续，接下来的每一天仍然是你自己的。</p></section>`
     : '';
   const bust = b?.bankrupt
@@ -569,6 +653,7 @@ function morningHtml(report, forced) {
     <p class="stamp">${b ? '账单日 · ' : ''}早上 7:00</p><h2>第 ${s.day} 天</h2>
     ${forced ? '<p class="hint">昨晚 11 点你还在外面晃，回去倒头就睡了。</p>' : ''}
     ${entries(report.lines)}
+    ${report.event?.name ? `<aside class="tip"><b>今天</b><p>${report.event.text}</p></aside>` : ''}
     ${won}${bust}${b ? billHtml(b) : ''}
     <p class="stockline">手里有 <b>${s.cash}</b> 元${s.debt ? `，欠 <b class="owe-text">${s.debt}</b>` : ''}</p>
     <button class="btn primary wide" data-act="close" data-close>起床</button>
@@ -581,7 +666,7 @@ function storeSheet() {
   const s = app.s;
   const v = RULES.vending;
   const rows = [
-    ['bento', '便当', `现成的，吃了饱食 +${RULES.bento.fullness}，花半个钟头`, RULES.bento.price, s.cash < RULES.bento.price],
+    ['bento', s.event === 'bentoSale' ? '临期便当（今天半价）' : '便当', `现成的，吃了饱食 +${RULES.bento.fullness}，花半个钟头`, bentoPrice(s), s.cash < bentoPrice(s)],
     ['grocery', '一份食材', `回屋自己做，要花 1 个钟头，饱食 +${RULES.cook.fullness}，心力 +${RULES.cook.sanity}`, RULES.grocery.price, s.cash < RULES.grocery.price],
     ['grocery4', '四份食材', '够吃两天', RULES.grocery.price * 4, s.cash < RULES.grocery.price * 4],
   ]
@@ -603,12 +688,13 @@ function storeSheet() {
 function dinerHtml() {
   const s = app.s;
   const j = RULES.job;
+  const pay = j.pay + (s.event === 'busyDiner' ? 15 : 0);
   return dialog(
     '阿福快餐',
-    `<p class="say">店长头也不抬：“排班表在墙上。一班 ${j.hours} 个钟头，${j.pay} 块，当天结。”</p>
-     <p class="hint">体力 −${j.energy}，心力 −${j.sanity}。干多久都是这个价。今天已经干了 ${s.today.work} 个钟头。</p>`,
+    `<p class="say">店长头也不抬：“排班表在墙上。一班 ${j.hours} 个钟头，${pay} 块，当天结。${s.event === 'busyDiner' ? '今天缺人，多给十五。' : ''}”</p>
+     <p class="hint">体力 −${energyCost(s, j.energy)}，心力 −${j.sanity}。出餐快有小费，最多 +${j.bigTip}；手忙脚乱会挨骂。今天已经干了 ${s.today.worked} 个钟头。</p>`,
     [
-      [`上一班（${j.hours} 小时，+${j.pay}）`, 'work', 'primary'],
+      [`上一班（${j.hours} 小时，+${pay} 起）`, 'work', 'primary'],
       ['先不干', 'close'],
     ],
     `${clockText(s)} · 营业到 ${j.close}:00`,
@@ -634,13 +720,15 @@ function schoolHtml() {
   const s = app.s;
   const c = RULES.course;
   const r = RULES.repair;
+  const rushPay = s.event === 'rushRepair' && s.today.repairs === 0 ? r.pay * 2 : r.pay;
+  const fee = s.event === 'freeClass' ? 0 : c.fee;
   if (skilled(s)) {
     return dialog(
       '社区夜校',
       `<p class="say">门口的公告栏上贴满了报修的条子：洗衣机不转了、空调不制冷、电饭煲跳闸。</p>
-       <p class="hint">接一单 ${r.hours} 个钟头，挣 ${r.pay}，体力 −${r.energy}，心力 −${r.sanity}。今天接了 ${s.today.repairs} / ${r.perDay} 单。</p>`,
+       <p class="hint">接一单 ${r.hours} 个钟头，挣 ${rushPay}，体力 −${energyCost(s, r.energy)}，心力 −${r.sanity}。修得利索多给 ${r.tip}，修坏了要返工扣 ${r.redo}。今天接了 ${s.today.repairs} / ${r.perDay} 单。</p>`,
       [
-        [`接一单（${r.hours} 小时，+${r.pay}）`, 'repair', 'primary'],
+        [`接一单（${r.hours} 小时，+${rushPay} 起）`, 'repair', 'primary'],
         ['回头再说', 'close'],
       ],
       '家电维修 · 已结业',
@@ -649,13 +737,30 @@ function schoolHtml() {
   return dialog(
     '社区夜校',
     `<p class="say">“家电维修班，一共 ${c.classes} 节。学完了街坊的活儿都能接，一个钟头比端盘子挣得多。”</p>
-     <p class="hint">一节课 ${c.hours} 个钟头，学费 ${c.fee}，体力 −${c.energy}，心力 −${c.sanity}。心力低于 ${RULES.lowSanity} 时学不进去。</p>
-     <div class="progress"><div style="width:${(s.classes / c.classes) * 100}%"></div></div><p class="hint">已经上了 ${s.classes} / ${c.classes} 节。</p>`,
+     <p class="hint">一节课 ${c.hours} 个钟头，学费 ${fee === 0 ? '今天免费' : fee}，体力 −${energyCost(s, c.energy)}，心力 −${c.sanity}。听得认真，进度算一节半。心力低于 ${RULES.lowSanity} 时学不进去。</p>
+     <div class="progress"><div style="width:${(s.classes / c.classes) * 100}%"></div></div><p class="hint">进度 ${s.classes} / ${c.classes} 节。</p>`,
     [
-      [`上一节课（${c.hours} 小时，${c.fee} 元）`, 'study', 'primary'],
+      [`上一节课（${c.hours} 小时，${fee === 0 ? '免费' : `${fee} 元`}）`, 'study', 'primary'],
       ['回头再说', 'close'],
     ],
     '家电维修班',
+  );
+}
+
+function guideHtml() {
+  const s = app.s;
+  const g = RULES.guide;
+  return dialog(
+    s.guides === 0 ? '写一份维修教程' : '再写一份进阶教程',
+    `<p>把你会的东西一步一步写下来、拍成图，挂到网上。以后别人每看一次，你就有一点收入，写的时候不用花一分钱，花的是时间。</p>
+     <p class="hint">写一次 ${g.hours} 个钟头，体力 −${energyCost(s, g.energy)}，心力 −${g.sanity}，一共要写 ${g.sessions} 次。写完后每个账单日进账 ${g.income}。</p>
+     <div class="progress"><div style="width:${(s.guideWork / g.sessions) * 100}%"></div></div><p class="hint">这一份写了 ${s.guideWork} / ${g.sessions} 次。已经写完 ${s.guides} 份。</p>`,
+    [
+      [`写上 ${g.hours} 个钟头`, 'guide', 'primary'],
+      ['只是坐一会儿', 'desk-rest'],
+      ['算了', 'close'],
+    ],
+    '旧笔记本电脑',
   );
 }
 
@@ -725,8 +830,18 @@ function talk(id) {
     const buttons = s.lessons >= RULES.fishing.lessons ? [[`一起钓会儿鱼（${RULES.fishing.hours} 小时）`, 'fish', 'primary'], ['不打扰了', 'close']] : [['不打扰了', 'close', 'primary']];
     return layer(dialog('老陈', `<p class="say">${text}</p>`, buttons, result.done ? '' : '明天再来，他还有话说'));
   }
-  if (id === 'qiang') return layer(dialog('阿强', `<p class="say">${qiangLine(month, s)}</p>`, [['嗯', 'close', 'primary']], '快餐店后厨 · 一天两份工'));
-  if (id === 'lili') return layer(dialog('莉莉', `<p class="say">${liliLine(month, s)}</p>`, [['嗯', 'close', 'primary']], '市中心写字楼 · 周末回来'));
+  if (id === 'qiang') {
+    if (canTreat(s, 'qiang')) {
+      return layer(dialog('阿强', '<p class="say">“发加班费了！走，我请你吃顿好的。就对面那家盖浇饭，加个蛋。”</p><p class="hint">花 1 个钟头，饱食 +50，心力 +8，不花钱。</p>', [['一起去吃', 'treat', 'primary', 'data-who="qiang"'], ['今天不了', 'close']], '快餐店后厨 · 一天两份工'));
+    }
+    return layer(dialog('阿强', `<p class="say">${qiangLine(month, s)}</p>`, [['嗯', 'close', 'primary']], '快餐店后厨 · 一天两份工'));
+  }
+  if (id === 'lili') {
+    if (canTreat(s, 'lili')) {
+      return layer(dialog('莉莉', '<p class="say">“买一送一，我一个人喝不完。这杯给你，三分糖的。”</p><p class="hint">花半个钟头，心力 +25，不花钱。</p>', [['谢谢', 'treat', 'primary', 'data-who="lili"'], ['不用了', 'close']], '市中心写字楼 · 周末回来'));
+    }
+    return layer(dialog('莉莉', `<p class="say">${liliLine(month, s)}</p>`, [['嗯', 'close', 'primary']], '市中心写字楼 · 周末回来'));
+  }
   if (id === 'sales') return layer(sheet(salesSheet()));
   if (id === 'guru') return layer(guruHtml());
 }
@@ -737,12 +852,29 @@ function phoneSheet(tab = 'ledger') {
   const s = app.s;
   const tabs = [
     ['ledger', '账本'],
+    ['fund', '基金'],
     ['loan', '闪电贷'],
     ['time', '时间'],
   ]
     .map(([id, label]) => `<button class="btn small ${tab === id ? 'primary' : ''}" data-act="phone" data-tab="${id}">${label}</button>`)
     .join('');
   const head = `<p class="stamp">第 ${monthOf(s)} 个月 · 第 ${s.day} 天 · ${clockText(s)}</p><div class="tabs">${tabs}</div>`;
+
+  if (tab === 'fund') {
+    const value = fundValue(s);
+    const spare = s.cash;
+    const buys = [100, 300, 500].filter((n) => n <= spare);
+    return `${head}<h2>指数基金</h2>
+      <p>把一篮子公司各买一点。每个账单日按市值分红 ${Math.round(RULES.fund.yield * 100)}%，价钱每个月有涨有跌，但<b>随时能按当时的价钱卖掉</b>。</p>
+      <p class="hint">售货机一个月能回 ${Math.round((RULES.vending.income / RULES.vending.cost) * 100)}% 的本，可急用钱时只能半价卖。基金回得慢，但钱没有被锁住。</p>
+      <dl class="tally">
+        <div><dt>你持有的市值</dt><dd>${value}</dd></div>
+        <div><dt>下个账单日的分红</dt><dd class="good">${fundDividend(s)}</dd></div>
+        <div><dt>现在的价钱（刚开始是 100）</dt><dd>${Math.round(s.fund.price)}</dd></div>
+      </dl>
+      <div class="steps"><span class="label">买入（你有 ${s.cash}）</span>${buys.map((n) => `<button class="btn" data-act="fund-buy" data-n="${n}">买 ${n}</button>`).join('') || '<span class="hint">最少要 100。</span>'}</div>
+      ${value > 0 ? `<div class="steps"><span class="label">卖出</span>${[100, 300].filter((n) => n < value).map((n) => `<button class="btn" data-act="fund-sell" data-n="${n}">卖 ${n}</button>`).join('')}<button class="btn primary" data-act="fund-sell" data-n="${value}">全卖 ${value}</button></div>` : ''}`;
+  }
 
   if (tab === 'loan') {
     const room = loanLimit(s) - s.debt;
@@ -785,7 +917,7 @@ function phoneSheet(tab = 'ledger') {
     ${i.wage + i.repair + x.food + x.fun + x.study + x.medical === 0 ? '<p class="hint">这个月还没有进出。</p>' : ''}
     <h4>账单日那天</h4>
     <dl class="tally">
-      ${row('售货机会进账', passive, 'good')}
+      ${row('不干活也会进账', passive, 'good')}
       ${row('房租', fixed.rent, 'bad')}${row('分期还款', fixed.installments, 'bad')}${row('电动车充电保养', fixed.upkeep, 'bad')}${row('闪电贷利息（并入欠款）', fixed.interest, 'bad')}
     </dl>
     <h4>我手里的东西</h4>
@@ -824,6 +956,7 @@ root.addEventListener('click', (event) => {
     case 'continue':
       return show('game');
     case 'home':
+      stopMinigame();
       save();
       return show('home');
     case 'menu':
@@ -838,13 +971,31 @@ root.addEventListener('click', (event) => {
     case 'sleep':
       return sleep(false);
     case 'work':
-      return spend(work, '在快餐店站了一班');
+      return attempt(work, (done) => playOrders(host(), { title: '阿福快餐 · 出餐口', intro: '单子一张接一张。按错了这一单要重来。出满六单有小费。' }, done), (score) =>
+        spend((st) => work(st, score), score >= 0.99 ? '一单没错，店长多塞了十二块' : score >= 0.7 ? '出餐挺快，拿到一点小费' : score < 0.3 ? '手忙脚乱，被店长说了一顿' : '在快餐店站了一班'),
+      );
     case 'repair':
-      return spend(repairJob, '上门修好了一台家电');
+      return attempt(repairJob, (done) => playTiming(host(), { title: '上门维修', heading: '找到毛病出在哪儿', intro: '表笔扫过去，扫到绿色那一段时按空格。五次里中四次算修得利索。' }, done), (score) =>
+        spend((st) => repairJob(st, score), score >= 0.8 ? '一次修好，主人多给了十五块' : score < 0.3 ? '装回去又不转了，返工扣了钱' : '上门修好了一台家电'),
+      );
     case 'study':
-      return spend(study, '在夜校上了一节课', () => {
-        if (skilled(s)) layer(dialog('结业了', '<p>老师把一张结业证拍在你手里：“以后街坊的洗衣机坏了，就找你。”</p><p class="hint">夜校门口的公告栏上可以接维修单了，一个钟头挣的是端盘子的两倍多。</p>', [['好', 'close', 'primary']], '家电维修班'));
+      return attempt(study, (done) => playTiming(host(), { title: '家电维修班', heading: '老师讲到重点了', intro: '粉笔划到绿色那一段时按空格，把重点记下来。五次里中四次，这节课算一节半。' }, done), (score) =>
+        spend((st) => study(st, score), score >= 0.8 ? '这节课听得很明白' : '在夜校上了一节课', () => {
+          if (skilled(s)) layer(dialog('结业了', '<p>老师把一张结业证拍在你手里：“以后街坊的洗衣机坏了，就找你。”</p><p class="hint">教室的公告栏上可以接维修单了，一个钟头挣的是端盘子的三倍。会的东西，还可以回家在书桌上写成教程。</p>', [['好', 'close', 'primary']], '家电维修班'));
+        }),
+      );
+    case 'guide':
+      return spend(writeGuide, '对着旧电脑写了两个钟头教程', () => {
+        if (s.guideWork === 0 && s.guides > 0) layer(dialog('教程写完了', `<p>你把最后一张图传了上去，点了“发布”。</p><p class="hint">从下个账单日起，它每个月会给你带来 ${RULES.guide.income}。它是你花时间做出来的，没有花一分钱。${s.ledger ? '账本上“往里流钱的”那一栏多了一行。' : ''}</p>`, [['好', 'close', 'primary']], '花时间做出来的东西'));
       });
+    case 'desk-rest':
+      return spend(restHome, '对着窗户坐了一会儿');
+    case 'treat':
+      return spend((st) => treat(st, d.who), d.who === 'qiang' ? '和阿强吃了顿盖浇饭' : '喝了莉莉给的奶茶');
+    case 'fund-buy':
+      return reopen(sheet(phoneSheet('fund')), buyFund(s, Number(d.n)));
+    case 'fund-sell':
+      return reopen(sheet(phoneSheet('fund')), sellFund(s, Number(d.n)));
     case 'fish':
       return spend(fishWithChen, '和老陈钓了一下午鱼');
     case 'tea':
@@ -1017,7 +1168,7 @@ function updateTraffic(dt) {
     const dirX = c.lane ? 1 : -1;
     const ahead = (p.x - c.x) * dirX;
     const inLane = rt.where === 'out' && Math.abs(p.y - y) < 1.3;
-    const blockedByPlayer = inLane && ahead > 0 && ahead < 4.5;
+    const blockedByPlayer = inLane && ahead > -1.5 && ahead < 4.5;
     const other = rt.cars.some((o) => o !== c && o.lane === c.lane && (o.x - c.x) * dirX > 0 && (o.x - c.x) * dirX < 4.2);
     if (!blockedByPlayer && !other) c.x += dirX * c.speed * dt;
     if (c.x > 72) c.x = -6;
@@ -1026,6 +1177,12 @@ function updateTraffic(dt) {
   for (const w of rt.walkers) {
     if (w.pause > 0) {
       w.pause -= dt;
+      continue;
+    }
+    // 你挡在前面时，路人停下等一等，不从你身上穿过去
+    const gap = (p.x - w.x) * w.dir;
+    if (rt.where === 'out' && Math.abs(p.y - w.y) < 0.9 && gap > 0 && gap < 1.1) {
+      w.step = 0;
       continue;
     }
     w.x += w.dir * 1.6 * dt;
@@ -1044,7 +1201,7 @@ function update(dt) {
   const s = app.s;
   const p = rt.p;
 
-  s.minutes += (dt * RULES.dayHours * 60) / RULES.daySeconds;
+  advance(s, (dt * RULES.dayHours * 60) / RULES.daySeconds);
   if (s.minutes >= RULES.dayHours * 60) return sleep(true);
 
   const [vx, vy, dir] = inputVector();
@@ -1086,6 +1243,10 @@ function update(dt) {
     rt.saveAt = rt.time;
     save();
   }
+  if (rt.time - rt.meterAt > 4) {
+    rt.meterAt = rt.time;
+    hud();
+  }
 }
 
 function frame(now) {
@@ -1099,6 +1260,42 @@ function frame(now) {
 /* ---------- 绘制 ---------- */
 
 const hash = (x, y) => ((x * 73856093) ^ (y * 19349663)) >>> 0;
+
+// 街上的记号：今天有事的地方、老陈有新话要说时，头顶冒一个感叹号
+const MARK_AT = { store: [18, 6.3], diner: [29.5, 6.3], school: [54.5, 5.6], home: [7, 5], qiang: [31.5, 8.2], lili: [40.5, 9.2], chen: [36.5, 21.2] };
+
+function drawMarks(ctx) {
+  const s = app.s;
+  const marks = [];
+  const where = eventToday(s).where;
+  if (where && !(where === 'qiang' && !canTreat(s, 'qiang')) && !(where === 'lili' && !canTreat(s, 'lili'))) marks.push(MARK_AT[where]);
+  if (lessonReady(s) && s.event !== 'rain') marks.push(MARK_AT.chen);
+  const bob = Math.round(Math.sin(rt.time * 5) * 1.5);
+  for (const [x, y] of marks) {
+    const px = Math.round(x * T);
+    const py = Math.round(y * T) + bob;
+    ctx.fillStyle = '#2b2437';
+    ctx.fillRect(px - 4, py - 12, 8, 14);
+    ctx.fillStyle = '#f2c14e';
+    ctx.fillRect(px - 2, py - 10, 4, 6);
+    ctx.fillRect(px - 2, py - 2, 4, 2);
+  }
+}
+
+function drawRain(ctx, cw, ch, dpr) {
+  ctx.fillStyle = 'rgba(40, 52, 80, 0.22)';
+  ctx.fillRect(0, 0, cw, ch);
+  ctx.strokeStyle = 'rgba(200, 220, 240, 0.5)';
+  ctx.lineWidth = dpr;
+  ctx.beginPath();
+  for (let i = 0; i < 140; i++) {
+    const x = (hash(i, 3) % (cw + 200)) - 100;
+    const y = ((hash(i, 11) % ch) + rt.time * (700 + (i % 5) * 90) * dpr) % ch;
+    ctx.moveTo(x, y);
+    ctx.lineTo(x - 5 * dpr, y + 14 * dpr);
+  }
+  ctx.stroke();
+}
 
 // 出租屋里随日子变化的摆设
 const DECOR_WHEN = {
@@ -1117,7 +1314,7 @@ function drawDecor(ctx, room, list) {
   const hour = hourNow(s);
   for (const d of room.decor) {
     if (d.when && !DECOR_WHEN[d.when](s)) continue;
-    let sprite = R[d.art];
+    let sprite = room.kind === 'home' ? R[d.art] : (shopArt()[d.art] ?? R[d.art]);
     if (d.art === 'window') sprite = R.window[hour >= 19 ? 'night' : hour >= 17 ? 'dusk' : 'day'];
     if (d.art === 'plant') sprite = R.plant[s.sanity < RULES.lowSanity ? 0 : s.sanity >= 60 ? 2 : 1];
     if (d.base) list.push([d.base, () => ctx.drawImage(sprite, d.px, d.py)]);
@@ -1224,6 +1421,18 @@ function draw() {
     for (let x = x0; x <= x1; x++) {
       const px = x * T;
       const py = y * T;
+      if (inRoom && m.kind !== 'home') {
+        const S = shopArt();
+        const R = roomArt();
+        const style = { store: ['shopFloor', 'storeWall'], diner: ['checker', 'dinerWall'], school: ['classFloor', 'classWall'] }[m.kind];
+        const inner = x >= 1 && x < m.w - 1;
+        let tile = R.dark;
+        if (inner && y >= 2 && y < m.h - 1) tile = S[style[0]][hash(x, y) % S[style[0]].length];
+        else if (inner && (y === 0 || y === 1)) tile = S[style[1]][y];
+        else if (x >= 0 && x < m.w && y >= 0 && y < m.h) tile = R.wallTop;
+        ctx.drawImage(tile, px, py);
+        continue;
+      }
       if (inRoom) {
         const R = roomArt();
         const inner = x >= 1 && x < m.w - 1;
@@ -1286,14 +1495,18 @@ function draw() {
   const seen = (t) => t.x + t.fw + 1 >= x0 && t.x - 2 <= x1 && t.y + t.fh >= y0 && t.y - 8 <= y1;
   for (const t of m.things) {
     if (!seen(t)) continue;
-    const sprite = t.art === 'tree' ? A.tree[t.variant ?? 0] : inRoom ? roomArt()[t.art] : A[t.art];
+    let sprite = t.art === 'tree' ? A.tree[t.variant ?? 0] : inRoom ? (m.kind === 'home' ? roomArt()[t.art] : (shopArt()[t.art] ?? roomArt()[t.art])) : A[t.art];
+    if (Array.isArray(sprite)) sprite = sprite[t.variant ?? 0];
     if (!sprite) continue;
     const dx = Math.round((t.x + t.fw / 2) * T - sprite.width / 2);
     const dy = (t.y + t.fh) * T - sprite.height;
     if (t.flat) ctx.drawImage(sprite, dx, dy);
     else list.push([(t.y + t.fh) * T, () => ctx.drawImage(sprite, dx, dy)]);
   }
-  if (inRoom) drawDecor(ctx, m, list);
+  if (inRoom) {
+    drawDecor(ctx, m, list);
+    for (const n of m.npcs) list.push([(n.y + 1) * T - 2, () => person(ctx, shopArt().people[n.id], n.x + 0.5, n.y + 0.55, n.face, 0)]);
+  }
   if (!inRoom) {
     VENDING_SPOTS.slice(0, s.machines).forEach((v) => {
       const sprite = A.vending[frameNo];
@@ -1320,8 +1533,8 @@ function draw() {
   list.push([p.y * T + 7, () => person(ctx, A.people.player, p.x, p.y, p.dir, p.step)]);
   list.sort((a, b) => a[0] - b[0]).forEach(([, fn]) => fn());
 
-  /* 老陈的鱼线 */
-  if (!inRoom) {
+  /* 老陈的鱼线（下雨天他收了竿） */
+  if (!inRoom && s.event !== 'rain') {
     const chen = m.npcs[0];
     const fx = (chen.x + 0.5) * T;
     const fy = (chen.y + 2.2) * T + Math.round(Math.sin(rt.time * 2));
@@ -1355,10 +1568,12 @@ function draw() {
     }
   }
 
-  if (inRoom) roomLight(ctx, m);
+  if (inRoom && m.kind === 'home') roomLight(ctx, m);
+  if (!inRoom) drawMarks(ctx, m);
 
   /* 天色 */
   ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (!inRoom && s.event === 'rain') drawRain(ctx, cw, ch, dpr);
   if (!inRoom) {
     const late = Math.max(0, (s.minutes - 10 * 60) / (6 * 60));
     if (late > 0) {
@@ -1388,7 +1603,7 @@ function draw() {
 /* ---------- 启动 ---------- */
 
 // 调试用：地址以 #debug 结尾时，把内部状态挂到 window 上，方便自动化测试。
-if (location.hash === '#debug') window.__game = { app, rt, hud, layer, sleep, use };
+if (location.hash === '#debug') window.__game = { app, rt, hud, layer, sleep, use, enter };
 
 const hot = window.claude?.hot;
 hot?.snapshot?.(() => ({ s: app.s }));

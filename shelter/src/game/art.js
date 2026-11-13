@@ -657,7 +657,7 @@ const coin = make(T, T, (r, e) => {
   r(C.yellowD, 7, 6, 2, 6);
 });
 
-export { make, C, INK };
+export { make, C, INK, human };
 
 let cache = null;
 
