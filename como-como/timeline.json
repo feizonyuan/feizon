@@ -1,0 +1,241 @@
+{
+ "fps": 30,
+ "duration": 51.55,
+ "bpm": 96.0,
+ "beat": 0.625,
+ "bar": 2.5,
+ "establish": 0.9,
+ "scratch": 31.532,
+ "drop": 32.5,
+ "rap_start": 35.0,
+ "rap_end": 45.0,
+ "gag": 45.25,
+ "seeds": [
+  45.5,
+  45.7,
+  45.9,
+  46.1,
+  46.3,
+  46.5,
+  46.7,
+  46.9,
+  47.1,
+  47.3
+ ],
+ "boing": 47.85,
+ "end_card": 48.35,
+ "lines": [
+  {
+   "id": "l01",
+   "who": "Shiba",
+   "start": 0.9,
+   "end": 3.127,
+   "zh": "西班牙语很简单的",
+   "fg": "Spanish is easy",
+   "say": "Spanish is easy, right?",
+   "chunks": null
+  },
+  {
+   "id": "l02",
+   "who": "Hammy",
+   "start": 3.577,
+   "end": 6.415,
+   "zh": "那\"怎么\"用西班牙语怎么说？",
+   "fg": "\"how\" in Spanish?",
+   "say": "Oh really? How do you say \"how\" in Spanish?",
+   "chunks": null
+  },
+  {
+   "id": "l03",
+   "who": "Shiba",
+   "start": 6.765,
+   "end": 8.002,
+   "zh": "怎么",
+   "fg": "cómo",
+   "say": "Cómo.",
+   "chunks": null
+  },
+  {
+   "id": "l04",
+   "who": "Hammy",
+   "start": 8.222,
+   "end": 8.775,
+   "zh": "我吃",
+   "fg": "I eat",
+   "say": "I eat?",
+   "chunks": null
+  },
+  {
+   "id": "l05",
+   "who": "Shiba",
+   "start": 8.995,
+   "end": 10.068,
+   "zh": "我吃",
+   "fg": "como",
+   "say": "Como.",
+   "chunks": null
+  },
+  {
+   "id": "l06",
+   "who": "Hammy",
+   "start": 10.288,
+   "end": 10.746,
+   "zh": "像",
+   "fg": "like",
+   "say": "Like?",
+   "chunks": null
+  },
+  {
+   "id": "l07",
+   "who": "Shiba",
+   "start": 10.966,
+   "end": 11.997,
+   "zh": "像",
+   "fg": "como",
+   "say": "Como.",
+   "chunks": null
+  },
+  {
+   "id": "l08",
+   "who": "Hammy",
+   "start": 12.217,
+   "end": 12.758,
+   "zh": "因为",
+   "fg": "since",
+   "say": "Since?",
+   "chunks": null
+  },
+  {
+   "id": "l09",
+   "who": "Shiba",
+   "start": 12.978,
+   "end": 14.051,
+   "zh": "因为",
+   "fg": "como",
+   "say": "Como.",
+   "chunks": null
+  },
+  {
+   "id": "l10",
+   "who": "Hammy",
+   "start": 14.271,
+   "end": 14.921,
+   "zh": "大约十个",
+   "fg": "about ten",
+   "say": "About ten?",
+   "chunks": null
+  },
+  {
+   "id": "l11",
+   "who": "Shiba",
+   "start": 15.141,
+   "end": 16.585,
+   "zh": "大约十个",
+   "fg": "como diez",
+   "say": "Como diez.",
+   "chunks": null
+  },
+  {
+   "id": "l12",
+   "who": "Hammy",
+   "start": 16.885,
+   "end": 17.84,
+   "zh": "我怎么吃？",
+   "fg": "How do I eat?",
+   "say": "How do I eat?",
+   "chunks": null
+  },
+  {
+   "id": "l13",
+   "who": "Shiba",
+   "start": 18.14,
+   "end": 19.626,
+   "zh": "我怎么吃？",
+   "fg": "¿Cómo como?",
+   "say": "¿Cómo como?",
+   "chunks": null
+  },
+  {
+   "id": "l14",
+   "who": "Hammy",
+   "start": 19.926,
+   "end": 21.627,
+   "zh": "我像我吃那样吃！",
+   "fg": "I eat like I eat!",
+   "say": "I eat like I eat!",
+   "chunks": null
+  },
+  {
+   "id": "l15",
+   "who": "Shiba",
+   "start": 21.927,
+   "end": 23.371,
+   "zh": "我像我吃那样吃",
+   "fg": "Como como como.",
+   "say": "Como como como.",
+   "chunks": null
+  },
+  {
+   "id": "l16",
+   "who": "Hammy",
+   "start": 23.921,
+   "end": 31.332,
+   "zh": "那试试这个：什么叫我怎么吃？因为我就这么吃，所以我吃大约十个！",
+   "fg": "Try this!",
+   "say": "Okay, try this! What do you mean, how do I eat? Since I eat like I eat... I eat about ten!",
+   "chunks": [
+    {
+     "fg": "Okay, try this!",
+     "zh": "那试试这个！"
+    },
+    {
+     "fg": "What do you mean, how do I eat?",
+     "zh": "什么叫我怎么吃？"
+    },
+    {
+     "fg": "Since I eat like I eat...",
+     "zh": "因为我就这么吃……"
+    },
+    {
+     "fg": "I eat about ten!",
+     "zh": "所以我吃大约十个！"
+    }
+   ]
+  }
+ ],
+ "rap": [
+  {
+   "id": "r1",
+   "start": 35.0,
+   "end": 37.092,
+   "say": "¿Cómo que cómo como?",
+   "zh": "什么叫我怎么吃？",
+   "stretch": 1.0
+  },
+  {
+   "id": "r2",
+   "start": 37.5,
+   "end": 39.363,
+   "say": "Como como como como,",
+   "zh": "因为我就这么吃，",
+   "stretch": 1.0
+  },
+  {
+   "id": "r3",
+   "start": 40.0,
+   "end": 42.01,
+   "say": "como como diez.",
+   "zh": "我吃大约十个。",
+   "stretch": 1.0
+  },
+  {
+   "id": "r4",
+   "start": 42.5,
+   "end": 44.75,
+   "say": "¿Cómo como? ¡Como como como!",
+   "zh": "我怎么吃？我就这么吃！",
+   "stretch": 1.3491
+  }
+ ],
+ "ring_text": "¿Cómo que cómo como? · Como como como como, · como como diez. · ¿Cómo como? ¡Como como como!"
+}

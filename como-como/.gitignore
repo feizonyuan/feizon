@@ -1,0 +1,10 @@
+node_modules/
+out/
+audio/raw/*
+!audio/raw/lines/
+audio/raw/lines/list.txt
+audio/raw/lines/*.txt
+audio/raw/lines/sil.wav
+__pycache__/
+audio/voice/
+audio/mix.wav
