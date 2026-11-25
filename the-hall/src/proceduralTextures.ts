@@ -176,8 +176,9 @@ export function floorMacro(w: number, h: number, mapX: (u: number) => number, ma
   paint(ctx, w, h, (u, v) => {
     const x = mapX(u), z = mapZ(v);
     // noise sampled in roughly isotropic world space
-    const n = f(u * 0.9, (v * aspect * 0.9) % 1);
-    const n2 = f2(u, (v * aspect) % 1);
+    const fr = (a: number) => ((a % 1) + 1) % 1;
+    const n = f(fr(x / 12.4), fr(-z / 12));
+    const n2 = f2(fr(x / 11.2), fr(-z / 10.85));
     let wet = n * 0.8 + n2 * 0.25;
     // more water on corridor center and under windows / in front of doors
     if (x > -2.2 && x < 2.2) {
@@ -188,8 +189,12 @@ export function floorMacro(w: number, h: number, mapX: (u: number) => number, ma
     wet += 0.12 * Math.exp(-Math.pow(z + 24, 2) / 3) * Math.exp(-Math.pow(x - 2, 2) / 2);
     wet += 0.1 * Math.exp(-Math.pow(z + 18.5, 2) / 2) * Math.exp(-Math.pow(x - 1, 2) / 1);
     if (z > -1.2) wet -= 0.25; // dry spawn area
+    if (x > 2.2 && z < -38.3 && z > -42.7) wet += 0.12 * Math.exp(-Math.pow(z + 40.5, 2) / 1.2); // corridor B centre
+    if (x > 7.8 && x < 16.2 && z < -42.7) wet += 0.3; // flooded locker room
+    if (x > 13.8 && x < 20.2 && z > -38.3) wet -= 0.2; // security office is dry
+    if (x < 2.4 && z < -36.2) wet += 0.06;
     // grime near wall bases
-    const edge = Math.min(Math.abs(x + 1.95), Math.abs(x - 2.2));
+    const edge = z < -36.2 ? 1 : Math.min(Math.abs(x + 1.95), Math.abs(x - 2.2));
     const grime = 0.75 + n2 * 0.4 - Math.exp(-edge * edge / 0.05) * 0.35;
     return [wet * 255, grime * 200, Math.random() * 255];
   });
@@ -510,5 +515,67 @@ export function warningSign(text: string, sub: string) {
   const img = ctx.getImageData(0, 0, W, H); const d = img.data; const er = makeFbm(3, 5, 4);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = (y * W + x) * 4; const k = 0.55 + er(x / W, y / H) * 0.6; d[i] *= k; d[i + 1] *= k; d[i + 2] *= k; }
   ctx.putImageData(img, 0, 0);
+  return toTexture(c, { repeat: false });
+}
+
+// ---------------------------------------------------------------- expansion textures
+
+/** Single locker front: vents, handle, number plate, dents and rust. */
+export function lockerTex(seed = 81) {
+  const W = 128, H = 512;
+  const { c, ctx } = canvas(W, H);
+  const f = makeFbm(seed, 3, 4);
+  paint(ctx, W, H, (u, v) => {
+    const n = f(u, v);
+    const rust = Math.max(0, n - 0.62) * 3 + Math.max(0, v - 0.85) * 1.5 * n;
+    const k = 0.8 + (n - 0.5) * 0.35 + (Math.random() - 0.5) * 0.05;
+    return [(78 * (1 - rust) + 96 * rust) * k, (92 * (1 - rust) + 52 * rust) * k, (86 * (1 - rust) + 30 * rust) * k];
+  });
+  ctx.fillStyle = 'rgba(10,12,12,0.85)';
+  for (let i = 0; i < 6; i++) { ctx.fillRect(34, 30 + i * 12, 60, 5); ctx.fillRect(34, 420 + i * 12, 60, 5); }
+  ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 4; ctx.strokeRect(4, 4, W - 8, H - 8);
+  ctx.fillStyle = '#b8bcbc'; ctx.fillRect(98, 230, 10, 50);
+  ctx.fillStyle = '#d8d4c4'; ctx.fillRect(40, 120, 48, 22);
+  ctx.fillStyle = '#222'; ctx.font = '700 16px monospace'; ctx.fillText(String(100 + Math.floor(mulberry32(seed)() * 80)), 48, 137);
+  return toTexture(c, { repeat: false });
+}
+
+export function cardboardTex(seed = 91) {
+  const W = 256, H = 256;
+  const { c, ctx } = canvas(W, H);
+  const f = makeFbm(seed, 6, 4);
+  paint(ctx, W, H, (u, v) => {
+    const k = 0.75 + (f(u, v) - 0.5) * 0.4 + Math.sin(u * 160) * 0.03;
+    const damp = Math.max(0, v - 0.7) * 1.2 * f(u * 2 % 1, v);
+    return [150 * k * (1 - damp * 0.5), 112 * k * (1 - damp * 0.55), 72 * k * (1 - damp * 0.6)];
+  });
+  ctx.fillStyle = 'rgba(190,170,120,0.6)'; ctx.fillRect(0, 118, W, 20);
+  ctx.fillStyle = 'rgba(30,25,20,0.8)'; ctx.font = '700 26px monospace'; ctx.fillText('FRAGILE', 20, 60); ctx.fillText('取扱注意', 130, 210);
+  return toTexture(c);
+}
+
+/** Plain wall sign: background color, foreground text lines (first line large). */
+export function signTex(lines: string[], bg = '#e8e4d8', fg = '#141414', w = 512, h = 256) {
+  const { c, ctx } = canvas(w, h);
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = fg; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  lines.forEach((l, i) => {
+    ctx.font = i === 0 ? `900 ${Math.round(h * 0.34)}px "Arial Black", "Noto Sans JP", sans-serif` : `700 ${Math.round(h * 0.15)}px "Noto Sans JP", Arial, sans-serif`;
+    ctx.fillText(l, w / 2, i === 0 ? h * 0.38 : h * 0.72 + (i - 1) * h * 0.17);
+  });
+  const img = ctx.getImageData(0, 0, w, h); const d = img.data; const er = makeFbm(7, 5, 4);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = (y * w + x) * 4; const k = 0.5 + er(x / w, y / h) * 0.7; d[i] *= k; d[i + 1] *= k; d[i + 2] *= k; }
+  ctx.putImageData(img, 0, 0);
+  return toTexture(c, { repeat: false });
+}
+
+export function keycardTex() {
+  const { c, ctx } = canvas(256, 160);
+  ctx.fillStyle = '#e8e8e2'; ctx.fillRect(0, 0, 256, 160);
+  ctx.fillStyle = '#c0281e'; ctx.fillRect(0, 0, 256, 36);
+  ctx.fillStyle = '#fff'; ctx.font = '900 22px Arial'; ctx.fillText('SECURITY / 警備', 12, 26);
+  ctx.fillStyle = '#9a9a9a'; ctx.fillRect(14, 52, 70, 86);
+  ctx.fillStyle = '#222'; ctx.font = '700 18px monospace'; ctx.fillText('TANAKA K.', 96, 80); ctx.fillText('LV 3', 96, 108);
+  ctx.fillStyle = '#d4b040'; ctx.fillRect(200, 100, 36, 28);
   return toTexture(c, { repeat: false });
 }

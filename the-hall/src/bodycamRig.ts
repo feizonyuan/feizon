@@ -1,6 +1,7 @@
 // First-person chest-mounted camera: pointer lock look, damped turning, footstep bob, AABB collision.
 import * as THREE from 'three/webgpu';
 import type { AABB } from './corridorBuilder';
+import { groundY } from './nav';
 
 export const EYE = 1.42;
 const RADIUS = 0.35;
@@ -24,6 +25,7 @@ export class BodycamRig {
   // external camera override (demo tour)
   override: { pos: THREE.Vector3; yaw: number; pitch: number } | null = null;
   shake = 0;
+  ground = 0;
 
   constructor(camera: THREE.PerspectiveCamera, private dom: HTMLElement, private colliders: () => AABB[]) {
     this.camera = camera;
@@ -55,7 +57,7 @@ export class BodycamRig {
   }
 
   reset(x: number, z: number, yaw: number) {
-    this.pos.set(x, 0, z); this.vel.set(0, 0, 0);
+    this.pos.set(x, 0, z); this.vel.set(0, 0, 0); this.ground = groundY(x, z);
     this.yaw = this.targetYaw = yaw; this.pitch = this.targetPitch = -0.02;
   }
 
@@ -115,7 +117,8 @@ export class BodycamRig {
     const roll = Math.sin(this.bobPhase) * 0.8 * (Math.PI / 180) * this.bobAmp;
     const idle = Math.sin(performance.now() * 0.0011) * 0.004;
     const sh = this.shake;
-    this.camera.position.set(this.pos.x + Math.cos(this.yaw) * sway + (Math.random() - 0.5) * sh * 0.03, EYE + bobY + idle + (Math.random() - 0.5) * sh * 0.03, this.pos.z - Math.sin(this.yaw) * sway);
+    this.ground += (groundY(this.pos.x, this.pos.z) - this.ground) * Math.min(1, dt * 14);
+    this.camera.position.set(this.pos.x + Math.cos(this.yaw) * sway + (Math.random() - 0.5) * sh * 0.03, this.ground + EYE + bobY + idle + (Math.random() - 0.5) * sh * 0.03, this.pos.z - Math.sin(this.yaw) * sway);
     this.camera.rotation.set(this.pitch + (Math.random() - 0.5) * sh * 0.02, this.yaw + (Math.random() - 0.5) * sh * 0.02, roll, 'YXZ');
   }
 

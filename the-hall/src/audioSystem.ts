@@ -18,6 +18,7 @@ export class AudioSystem {
   rainGain!: GainNode;
   private hbTimer = 0;
   presence = 0; // 0..1 entity proximity
+  rainLevel = 0.06;
   private positional: { panner: PannerNode; gain: GainNode }[] = [];
 
   start() {
@@ -120,7 +121,9 @@ export class AudioSystem {
     // rain louder near the windows; pan relative to facing
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(cam.quaternion);
     if (this.rainPan) this.rainPan.pan.setTargetAtTime(Math.max(-0.9, Math.min(0.9, -right.x * 0.7)), this.ctx.currentTime, 0.1);
-    this.rainGain.gain.setTargetAtTime(0.05 + Math.max(0, (-p.x + 0.5) / 2.7) * 0.08 * (p.z > -36 && p.x < 2.4 ? 1 : 0.3), this.ctx.currentTime, 0.2);
+    this.rainGain.gain.setTargetAtTime(this.rainLevel, this.ctx.currentTime, 0.4);
+    // deeper building rumble underground
+    this.droneGain.gain.setTargetAtTime(p.y < -1 ? 0.95 : 0.55, this.ctx.currentTime, 0.8);
 
     // presence: static + heartbeat
     const pr = this.presence;

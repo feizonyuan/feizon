@@ -5,6 +5,7 @@ import {
 } from 'three/tsl';
 import * as T from './proceduralTextures';
 import { mulberry32 } from './proceduralTextures';
+import { buildExpansion } from './expansion';
 
 export interface AABB { x0: number; x1: number; z0: number; z1: number; enabled?: boolean; tag?: string }
 
@@ -13,13 +14,13 @@ export interface FlickerLight {
   base: number;
   emissive?: THREE.MeshStandardMaterial | THREE.MeshBasicMaterial;
   emissiveBase?: THREE.Color;
-  mode: 'steady' | 'flicker' | 'buzz';
+  mode: 'steady' | 'flicker' | 'buzz' | 'fire';
   seed: number;
   value: number;
 }
 
 export const worldUniforms = {
-  wetThreshold: uniform(0.5),
+  wetThreshold: uniform(0.585),
   reflectStrength: uniform(0.9),
   rippleAmount: uniform(0.004),
 };
@@ -29,7 +30,7 @@ const DEG = Math.PI / 180;
 // ------------------------------------------------------------------ helpers
 type Tile = { u: number; v: number };
 
-function boxGeo(x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, tile: Tile) {
+export function boxGeo(x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, tile: Tile) {
   const w = Math.abs(x1 - x0), h = Math.abs(y1 - y0), d = Math.abs(z1 - z0);
   const g = new THREE.BoxGeometry(w, h, d);
   const uvA = g.attributes.uv as THREE.BufferAttribute;
@@ -62,19 +63,35 @@ export class Level {
   mats: Record<string, THREE.Material> = {};
 
   // gameplay hooks
-  fuses: THREE.Object3D[] = [];
+  pickups: { obj: THREE.Object3D; kind: 'fuse' | 'battery' | 'keycard' }[] = [];
   fuseSlots: THREE.Mesh[] = [];
   gate!: THREE.Group;
   gateCollider!: AABB;
-  gateLight!: THREE.PointLight;
+  liftDoor!: THREE.Mesh;
+  liftCollider!: AABB;
+  liftLight!: THREE.PointLight;
+  liftLed!: THREE.MeshBasicMaterial;
+  liftPos = new THREE.Vector3(-0.6, 1.2, -44.2);
+  liftOpen = 0;
+  steadyLights = false;
+  secDoor!: THREE.Mesh;
+  secCollider!: AABB;
+  secLed!: THREE.MeshBasicMaterial;
+  secReaderPos = new THREE.Vector3(18.45, 1.3, -38.5);
+  secOpen = 0;
+  secOpening = false;
+  liftOpening = false;
+  cctvScreens: THREE.Mesh[] = [];
+  swing?: { pivot: THREE.Object3D; light: THREE.PointLight; bulb: THREE.Object3D };
+  boilerPos = new THREE.Vector3();
   vendingTray!: THREE.Vector3;
   vendingSignMat!: THREE.MeshBasicMaterial;
   notes: { mesh: THREE.Object3D; lines: string[] }[] = [];
   breakerPos = new THREE.Vector3(2.08, 1.45, -15.6);
   vendingPos = new THREE.Vector3(1.4, 1.0, -18.5);
-  exitZ = -40.2;
   ledMats: THREE.MeshBasicMaterial[] = [];
   floorMat!: THREE.MeshStandardNodeMaterial;
+  floorRect = { X0: 0, Z0: 0, W: 1, D: 1 };
   fanBlade?: THREE.Object3D;
 
   constructor(scene: THREE.Scene) {
@@ -92,6 +109,7 @@ export class Level {
     this.buildRoom2();
     this.buildEnd();
     this.buildSpawn();
+    buildExpansion(this);
     this.buildDebris();
     this.buildAmbient();
   }
@@ -177,16 +195,17 @@ export class Level {
     this.colliders.push({ x0: -3, x1: -1.95, z0: -36.3, z1: 0.8 });
     this.wallColliders.push({ x0: -3, x1: -1.95, z0: -36.3, z1: 0.8 });
     // ceiling (one plane covering everything)
-    const ceil = new THREE.Mesh(new THREE.PlaneGeometry(11, 44), this.mats.ceiling);
-    const tex = this.tex.ceiling; tex.repeat.set(11 / 4, 44 / 4);
-    ceil.rotation.x = Math.PI / 2; ceil.position.set(3.1, 3.6, -21);
+    const ceil = new THREE.Mesh(new THREE.PlaneGeometry(46.6, 52), this.mats.ceiling);
+    const tex = this.tex.ceiling; tex.repeat.set(46.6 / 4, 52 / 4);
+    ceil.rotation.x = Math.PI / 2; ceil.position.set(20.7, 3.6, -25.2);
     this.root.add(ceil);
   }
 
   buildFloor() {
-    const X0 = -2.6, X1 = 8.6, Z0 = 0.8, Z1 = -42.6;
+    const X0 = -2.6, X1 = 36, Z0 = 0.8, Z1 = -51.2;
     const W = X1 - X0, D = Z0 - Z1;
-    const macro = T.floorMacro(256, 1024, (u) => X0 + u * W, (v) => Z0 - v * D);
+    this.floorRect = { X0, Z0, W, D };
+    const macro = T.floorMacro(448, 600, (u) => X0 + u * W, (v) => Z0 - v * D);
     const detail = T.floorDetail(11);
     const noise = T.noiseTex(31);
     this.tex.floorMacro = macro; this.tex.floorDetail = detail; this.tex.noise = noise;
@@ -262,7 +281,7 @@ export class Level {
     this.root.add(inst);
 
     // cold fill lights near LED strips
-    for (const z of [-6, -22, -30]) {
+    for (const z of [-6, -26]) {
       const l = new THREE.PointLight('#9AEBFF', 1.6, 7, 2);
       l.position.set(-1.9, 0.5, z);
       this.addLight(l);
@@ -362,9 +381,9 @@ export class Level {
       this.root.add(r);
     }
     // fuse 1 on the desk
-    this.fuses.push(this.makeFuse(5.3, 0.79, -5.6));
+    this.addPickup('fuse', this.makeFuse(5.3, 0.79, -5.6));
     this.notes.push({ mesh: this.makeNote(4.6, 0.785, -5.55, 0.3), lines: [
-      'NIGHT LOG — 11/19', '', 'The breaker blew again.', 'Spare fuses are around.', 'One is in the pump room.',
+      'NIGHT LOG — 11/19', '', 'The breaker blew again.', 'Needs 3 fuses. Spares are', 'somewhere in B. Gate at the', 'end of A is open.',
       '', 'Something stands at the', 'end of the hall when the', 'lights dip. It only moves', 'when nobody is looking.' ] });
   }
 
@@ -379,6 +398,32 @@ export class Level {
     g.position.set(x, y + 0.035, z);
     this.root.add(g);
     return g;
+  }
+
+  addPickup(kind: 'fuse' | 'battery' | 'keycard', obj: THREE.Object3D) {
+    this.pickups.push({ obj, kind });
+    return obj;
+  }
+
+  makeBattery(x: number, y: number, z: number) {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.017, 0.09, 12), new THREE.MeshStandardMaterial({ color: 0x1c1c1c, roughness: 0.4, metalness: 0.3, emissive: new THREE.Color('#3fff8a'), emissiveIntensity: 0.25 }));
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(0.0175, 0.0175, 0.03, 12), new THREE.MeshStandardMaterial({ color: 0xd4a020, roughness: 0.3, metalness: 0.8 }));
+    top.position.y = 0.05; g.add(body, top);
+    g.rotation.z = Math.PI / 2; g.position.set(x, y + 0.018, z);
+    const g2 = g.clone(); g2.position.z += 0.045; g2.rotation.y = 0.3;
+    const pack = new THREE.Group(); pack.add(g, g2);
+    this.root.add(pack);
+    return pack;
+  }
+
+  makeKeycard(x: number, y: number, z: number) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.086, 0.003, 0.054), [
+      this.mats.black, this.mats.black, new THREE.MeshStandardMaterial({ map: T.keycardTex(), roughness: 0.4, emissive: new THREE.Color(0.25, 0.08, 0.06) }), this.mats.black, this.mats.black, this.mats.black,
+    ]);
+    m.position.set(x, y + 0.002, z); m.rotation.y = 0.5;
+    this.root.add(m);
+    return m;
   }
 
   makeNote(x: number, y: number, z: number, rot: number) {
@@ -525,8 +570,7 @@ export class Level {
     this.addLight(warm, 'steady', signMat);
     const cool = new THREE.PointLight('#e8f4ff', 5, 7, 2); cool.position.set(0.85, 1.1, -18.6);
     this.addLight(cool);
-    const red = new THREE.PointLight('#FF3B2F', 1.2, 3, 2); red.position.set(1.05, 0.35, -18.6);
-    this.addLight(red);
+
   }
 
   // ---------------------------------------------------------------- room 2 (pump)
@@ -584,9 +628,9 @@ export class Level {
       const fl = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.06, 18), this.mats.darkMetal);
       fl.position.copy(p); fl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tg); this.root.add(fl);
     }
-    // crate with fuse 2
+    // crate with a spare battery
     this.box(this.mats.wood, 7.3, 8.1, 0, 0.7, -26.9, -27.8, { collide: true });
-    this.fuses.push(this.makeFuse(7.7, 0.7, -27.35));
+    this.addPickup('battery', this.makeBattery(7.7, 0.7, -27.35));
     // puddle-side props
     this.box(this.mats.darkMetal, 7.6, 8.15, 0, 1.6, -22.2, -23.0, { collide: true }); // cabinet
     this.notes.push({ mesh: this.makeNote(7.55, 0.705, -27.0, -0.5), lines: [
@@ -596,21 +640,21 @@ export class Level {
   }
   pumpPos = new THREE.Vector3();
 
-  // ---------------------------------------------------------------- end gate + cage
+  // ---------------------------------------------------------------- end gate + junction + lift B
   buildEnd() {
-    const c = this.mats.concrete;
+    const c = this.mats.concrete, c2 = this.mats.concrete2;
     this.wall(c, -2.6, -0.9, -36.0, -36.3);
     this.wall(c, 0.9, 2.6, -36.0, -36.3);
     this.box(c, -0.9, 0.9, 2.6, 3.6, -36.0, -36.3);
-    // cage room walls
-    this.wall(this.mats.concrete2, -2.6, -2.2, -36.3, -42.4);
-    this.wall(this.mats.concrete2, 2.2, 2.6, -36.3, -42.4);
-    this.wall(this.mats.concrete2, -2.6, 2.6, -42.0, -42.4);
-    // gate frame
+    // junction left wall + far wall with the lift opening (X -1.6..0.4)
+    this.wall(c2, -2.6, -2.2, -36.3, -44.7);
+    this.wall(c2, -2.6, -1.6, -44.3, -44.7);
+    this.wall(c2, 0.4, 2.6, -44.3, -44.7);
+    this.box(c2, -1.6, 0.4, 2.4, 3.6, -44.3, -44.7);
+    // gate frame + chain-link gate, already forced open
     const frameMat = this.mats.darkMetal;
     this.box(frameMat, -0.95, -0.85, 0, 2.6, -36.05, -36.25);
     this.box(frameMat, 0.85, 0.95, 0, 2.6, -36.05, -36.25);
-    // gate leaf (hinged at x=-0.9)
     const gate = new THREE.Group();
     gate.position.set(-0.88, 0, -36.15);
     const link = T.chainLink(); link.repeat.set(1.7 / 0.35, 2.5 / 0.35);
@@ -620,38 +664,49 @@ export class Level {
     for (const [x0, x1, y0, y1] of [[0, 1.76, 0.02, 0.06], [0, 1.76, 2.5, 2.54], [0, 0.04, 0, 2.55], [1.72, 1.76, 0, 2.55], [0, 1.76, 1.25, 1.29]]) {
       const b = new THREE.Mesh(boxGeo(x0, x1, y0, y1, -0.02, 0.02, { u: 1, v: 1 }), frameMat); gate.add(b);
     }
-    const lock = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.06), new THREE.MeshStandardMaterial({ color: 0x9a7a2a, metalness: 1, roughness: 0.4 }));
-    lock.position.set(1.7, 1.1, 0.05); gate.add(lock);
-    const lockLed = new THREE.Mesh(new THREE.SphereGeometry(0.012, 6, 4), new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 0.1, 0.05) }));
-    lockLed.position.set(1.7, 1.15, 0.09); gate.add(lockLed);
-    gate.userData.led = lockLed;
+    gate.rotation.y = -1.35;
     this.root.add(gate);
     this.gate = gate;
-    this.gateCollider = { x0: -0.9, x1: 0.9, z0: -36.3, z1: -36.0, enabled: true, tag: 'gate' };
-    this.colliders.push(this.gateCollider);
-    this.wallColliders.push(this.gateCollider);
-    // chain-link partitions & shelving silhouettes inside the cage
-    const fenceMat = meshMat.clone();
-    const link2 = link.clone(); link2.needsUpdate = true; link2.repeat.set(3.6 / 0.35, 3 / 0.35);
-    fenceMat.map = link2; fenceMat.alphaMap = link2;
-    const fence = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 3.0), fenceMat);
-    fence.rotation.y = Math.PI / 2; fence.position.set(-0.6, 1.5, -39.8); this.root.add(fence);
-    this.colliders.push({ x0: -0.65, x1: -0.55, z0: -41.6, z1: -38.0 });
+    this.gateCollider = { x0: -0.9, x1: 0.9, z0: -36.3, z1: -36.0, enabled: false, tag: 'gate' };
+    // a broken padlock on the floor
+    const lock = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.06), new THREE.MeshStandardMaterial({ color: 0x9a7a2a, metalness: 1, roughness: 0.4 }));
+    lock.position.set(0.5, 0.03, -36.6); lock.rotation.set(Math.PI / 2, 0, 0.7); this.root.add(lock);
+    // shelving along the junction's left wall
     for (const z of [-37.2, -38.4, -39.6, -40.8]) {
       this.box(this.mats.darkMetal, -2.15, -1.5, 0, 2.2, z, z - 0.06);
       for (let s = 0; s < 4; s++) this.box(this.mats.black, -2.15, -1.5, 0.3 + s * 0.6, 0.33 + s * 0.6, z + 0.5, z - 0.6);
     }
     this.colliders.push({ x0: -2.2, x1: -1.45, z0: -41.4, z1: -36.6 });
-    // freight elevator at the end: an open car with light
-    this.box(this.mats.darkMetal, 0.2, 2.2, 0, 0.05, -40.5, -42.0);
-    this.box(this.mats.darkMetal, 0.15, 0.25, 0, 3.0, -40.4, -40.6);
-    const elevLightMat = new THREE.MeshBasicMaterial({ color: new THREE.Color('#A8C96A').multiplyScalar(3) });
-    const el = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.04, 0.3), elevLightMat); el.position.set(1.2, 2.95, -41.2); this.root.add(el);
-    this.gateLight = new THREE.PointLight('#A8C96A', 6, 10, 2);
-    this.gateLight.position.set(0.8, 2.6, -39.5);
-    this.addLight(this.gateLight, 'flicker', elevLightMat);
+    this.occluders.push({ x0: -2.2, x1: -1.45, z0: -41.4, z1: -36.6 });
+    // lift car
+    this.wall(this.mats.darkMetal, -2.0, -1.6, -44.7, -47.6);
+    this.wall(this.mats.darkMetal, 0.4, 0.8, -44.7, -47.6);
+    this.wall(this.mats.darkMetal, -2.0, 0.8, -47.2, -47.6);
+    this.box(this.mats.metal, -1.6, 0.4, 0, 0.04, -44.7, -47.2);
+    const carMat = new THREE.MeshBasicMaterial({ color: new THREE.Color('#A8C96A').multiplyScalar(2.5) });
+    const carLamp = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.03, 0.3), carMat); carLamp.position.set(-0.6, 2.5, -46.0); this.root.add(carLamp);
+    // rolling shutter (opens when power is restored)
+    const shutterMat = new THREE.MeshStandardMaterial({ map: this.tex.metal, color: 0x7a7e80, roughness: 0.5, metalness: 0.8 });
+    this.liftDoor = this.box(shutterMat, -1.6, 0.4, 0, 2.4, -44.35, -44.55);
+    for (let i = 0; i < 12; i++) {
+      const slat = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.02, 0.02), this.mats.black);
+      slat.position.set(-0.6, 0.15 + i * 0.19, -44.33); this.liftDoor.add(slat);
+    }
+    this.liftCollider = { x0: -1.6, x1: 0.4, z0: -44.7, z1: -44.3, enabled: true, tag: 'door' };
+    this.colliders.push(this.liftCollider); this.wallColliders.push(this.liftCollider); this.occluders.push(this.liftCollider);
+    // call panel
+    this.box(this.mats.black, 0.6, 0.8, 1.15, 1.45, -44.26, -44.3);
+    this.liftLed = new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 0.1, 0.05) });
+    const led = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), this.liftLed); led.position.set(0.7, 1.38, -44.25); this.root.add(led);
+    // sickly lamp over the lift
+    const lampMat = new THREE.MeshBasicMaterial({ color: new THREE.Color('#A8C96A').multiplyScalar(3) });
+    const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.1, 0.12), lampMat); lamp.position.set(-0.6, 2.8, -44.22); this.root.add(lamp);
+    this.liftLight = new THREE.PointLight('#A8C96A', 5, 9, 2);
+    this.liftLight.position.set(-0.6, 2.5, -43.4);
+    this.addLight(this.liftLight, 'flicker', lampMat);
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.45), new THREE.MeshStandardMaterial({ map: T.warningSign('LIFT B', '関係者以外立入禁止'), roughness: 0.7 }));
-    sign.position.set(1.2, 2.2, -41.97); this.root.add(sign);
+    sign.position.set(1.4, 2.0, -44.29); this.root.add(sign);
+    void carMat;
   }
 
   buildSpawn() {
@@ -706,11 +761,14 @@ export class Level {
       let v = 1;
       if (L.mode === 'flicker') {
         const n = Math.sin(t * 13.1 + L.seed) * Math.sin(t * 7.3 + L.seed * 2) + Math.sin(t * 0.7 + L.seed);
-        v = n > 1.15 ? 0.05 : n > 0.9 ? 0.5 + Math.random() * 0.5 : 1;
+        v = n > 1.45 ? 0.05 : n > 1.2 ? 0.5 + Math.random() * 0.5 : 1;
+      } else if (L.mode === 'fire') {
+        v = 0.75 + Math.sin(t * 7.1 + L.seed) * 0.1 + Math.sin(t * 17.3) * 0.08 + Math.random() * 0.1;
       } else if (L.mode === 'buzz') {
         v = 0.93 + Math.random() * 0.07;
         if (Math.sin(t * 0.37 + L.seed) > 0.985) v = Math.random() < 0.5 ? 0.1 : 1;
       }
+      if (this.steadyLights) v = 1;
       L.value = v * this.power;
       L.light.intensity = L.base * L.value;
       if (L.emissive && L.emissiveBase) {
@@ -723,7 +781,23 @@ export class Level {
       lm.color.set('#9AEBFF').multiplyScalar(3.2 * on * this.power + 0.02);
     }
     // fuses bob/glow
-    for (const f of this.fuses) if (f.visible) { f.rotation.y += dt * 1.2; }
+    for (const p of this.pickups) if (p.obj.visible && p.kind === 'fuse') p.obj.rotation.y += dt * 1.2;
+    if (this.swing) {
+      const a = Math.sin(t * 1.25) * 0.32 + Math.sin(t * 0.37) * 0.08;
+      this.swing.pivot.rotation.z = a;
+      this.swing.pivot.updateMatrixWorld();
+      this.swing.bulb.getWorldPosition(this.swing.light.position);
+    }
+    if (this.secOpening && this.secOpen < 1) {
+      this.secOpen = Math.min(1, this.secOpen + dt * 0.8);
+      this.secDoor.position.x = this.secOpen * 1.95;
+      if (this.secOpen > 0.6) this.secCollider.enabled = false;
+    }
+    if (this.liftOpening && this.liftOpen < 1) {
+      this.liftOpen = Math.min(1, this.liftOpen + dt * 0.4);
+      this.liftDoor.position.y = this.liftOpen * 2.3;
+      if (this.liftOpen > 0.7) this.liftCollider.enabled = false;
+    }
     void sin;
   }
 }

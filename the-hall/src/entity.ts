@@ -3,13 +3,7 @@ import * as THREE from 'three/webgpu';
 import type { AABB } from './corridorBuilder';
 import { slideMove } from './bodycamRig';
 
-type Zone = 'corridor' | 'room1' | 'room2' | 'cage';
-export function zoneOf(x: number, z: number): Zone {
-  if (z < -36.15) return 'cage';
-  if (x > 2.4) return z > -16 ? 'room1' : 'room2';
-  return 'corridor';
-}
-const DOORS: Record<'room1' | 'room2', number> = { room1: -7.2, room2: -24 };
+import { zoneOf, nextPortal, groundY } from './nav';
 
 export class Entity {
   group = new THREE.Group();
@@ -59,7 +53,7 @@ export class Entity {
   }
 
   spawnAt(x: number, z: number) {
-    this.pos.set(x, 0, z);
+    this.pos.set(x, groundY(x, z), z);
     this.active = true;
     this.group.visible = true;
     this.seenTime = 0; this.unseenTime = 0;
@@ -67,25 +61,19 @@ export class Entity {
 
   hide() { this.active = false; this.group.visible = false; }
 
-  /** Pick the next waypoint toward the player through door gaps. */
+  /** Next point to walk to: the player if in the same zone, otherwise through the next door portal. */
   private waypoint(px: number, pz: number) {
-    const ez = zoneOf(this.pos.x, this.pos.z), pzone = zoneOf(px, pz);
+    const ez = zoneOf(this.pos.x, this.pos.z).id, pzone = zoneOf(px, pz).id;
     if (ez === pzone) return new THREE.Vector2(px, pz);
-    const ex = this.pos.x, ezz = this.pos.z;
-    if (ez === 'room1' || ez === 'room2') {
-      const dz = DOORS[ez];
-      if (Math.abs(ezz - dz) > 0.5 && ex > 2.9) return new THREE.Vector2(3.2, dz);
-      return new THREE.Vector2(1.2, dz);
-    }
-    if (ez === 'cage') return new THREE.Vector2(0, -35);
-    // in corridor, heading somewhere else
-    if (pzone === 'room1' || pzone === 'room2') {
-      const dz = DOORS[pzone];
-      if (Math.abs(ezz - dz) > 0.5 && ex < 1.8) return new THREE.Vector2(1.4, dz);
-      return new THREE.Vector2(3.6, dz);
-    }
-    if (pzone === 'cage') return new THREE.Vector2(0, -37.5);
-    return new THREE.Vector2(px, pz);
+    const p = nextPortal(ez, pzone);
+    if (!p) return new THREE.Vector2(this.pos.x, this.pos.z);
+    const ax = p.pa[0], az = p.pa[1], bx = p.pb[0], bz = p.pb[1];
+    const abx = bx - ax, abz = bz - az, len2 = abx * abx + abz * abz;
+    const t = ((this.pos.x - ax) * abx + (this.pos.z - az) * abz) / len2;
+    const lx = ax + abx * t - this.pos.x, lz = az + abz * t - this.pos.z;
+    const onLine = Math.hypot(lx, lz) < 0.5;
+    if ((t > -0.05 && onLine) || Math.hypot(this.pos.x - ax, this.pos.z - az) < 0.45) return new THREE.Vector2(bx + abx * 0.3, bz + abz * 0.3);
+    return new THREE.Vector2(ax, az);
   }
 
   /**
@@ -105,6 +93,7 @@ export class Entity {
     } else {
       this.seenTime += dt; this.unseenTime = 0;
     }
+    this.pos.y = groundY(this.pos.x, this.pos.z);
     this.group.position.copy(this.pos);
     // always faces the camera
     const ang = Math.atan2(player.x - this.pos.x, player.z - this.pos.z);

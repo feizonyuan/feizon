@@ -6,7 +6,8 @@ import { createPost, postUniforms } from './postProcessing';
 import { AudioSystem } from './audioSystem';
 import { Hud } from './hud';
 import { Entity } from './entity';
-import { Game } from './game';
+import { Game, SHOTS } from './game';
+import { Cctv } from './cctv';
 
 const params = new URLSearchParams(location.search);
 
@@ -17,6 +18,7 @@ async function boot() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
+  const baseExposure = { value: 1.0 };
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   app.appendChild(renderer.domElement);
@@ -39,6 +41,7 @@ async function boot() {
   const hud = new Hud();
   const audio = new AudioSystem();
   const { pipeline, bloomNode } = createPost(renderer, scene, camera);
+  const cctv = new Cctv(level.cctvScreens);
   const game = new Game(level, rig, entity, audio, hud, scene);
   rig.onLockChange = (l) => game.onLockChange(l);
   rig.onLockError = () => game.onLockError();
@@ -51,6 +54,8 @@ async function boot() {
     audio.start();
     audio.addHum(level.vendingPos, 60, 'sawtooth', 0.08, 300);
     audio.addHum(level.pumpPos, 33, 'sawtooth', 0.22, 220);
+    audio.addHum(level.boilerPos, 27, 'sawtooth', 0.35, 160);
+    audio.addHum(new THREE.Vector3(17, 1.2, -32.5), 15734 / 128, 'sine', 0.01, 3000);
     audio.addHum(new THREE.Vector3(5.4, 3, -8), 100, 'square', 0.012, 2500);
     audio.addHum(new THREE.Vector3(5.4, 3, -24), 100, 'square', 0.012, 2500);
     game.state = 'play';
@@ -73,11 +78,12 @@ async function boot() {
     title.style.display = 'none';
     hud.setVisible(true);
     game.state = 'play';
-    game.freezeShot(Math.max(0, Math.min(5, parseInt(shot, 10) || 0)));
+    level.steadyLights = true;
+    game.freezeShot(Math.max(0, Math.min(SHOTS.length - 1, parseInt(shot, 10) || 0)));
     if (params.has('flash')) game.flashOn = true;
     if (params.has('entity')) entity.spawnAt(parseFloat(params.get('ex') ?? '0'), parseFloat(params.get('ez') ?? '-12'));
   }
-  if (params.has('debug')) buildDebugPanel(renderer, scene, level, bloomNode);
+  if (params.has('debug')) buildDebugPanel(baseExposure, scene, level, bloomNode);
 
   // ---------------------------------------------------------- resize
   window.addEventListener('resize', () => {
@@ -105,12 +111,14 @@ async function boot() {
     level.update(dt, t);
     audio.updateListener(camera, dt);
     hud.update(dt, audio.levels(), game.battery, renderer.domElement.height);
+    renderer.toneMappingExposure = baseExposure.value * game.exposureGain;
+    cctv.update(dt, renderer, scene, rig.pos);
     pipeline.render();
     if (fpsEl) { fpsAcc += dt; fpsN++; if (fpsAcc > 0.5) { fpsEl.textContent = `${Math.round(fpsN / fpsAcc)} FPS · ${(renderer.backend as any).isWebGPUBackend ? 'WebGPU' : 'WebGL2'}`; fpsAcc = 0; fpsN = 0; } }
   });
 }
 
-function buildDebugPanel(renderer: THREE.WebGPURenderer, scene: THREE.Scene, level: Level, bloomNode: any) {
+function buildDebugPanel(baseExposure: { value: number }, scene: THREE.Scene, level: Level, bloomNode: any) {
   const panel = document.createElement('div');
   panel.id = 'debug';
   document.body.appendChild(panel);
@@ -128,7 +136,7 @@ function buildDebugPanel(renderer: THREE.WebGPURenderer, scene: THREE.Scene, lev
     row.append(label, input, val);
     panel.appendChild(row);
   };
-  add('exposure', 0.3, 2, 0.01, () => renderer.toneMappingExposure, (v) => (renderer.toneMappingExposure = v));
+  add('exposure', 0.3, 2, 0.01, () => baseExposure.value, (v) => (baseExposure.value = v));
   add('fog density', 0, 0.08, 0.001, () => fog.density, (v) => (fog.density = v));
   add('puddle threshold', 0.3, 0.8, 0.005, () => worldUniforms.wetThreshold.value as number, (v) => (worldUniforms.wetThreshold.value = v));
   add('reflection', 0, 2, 0.01, () => worldUniforms.reflectStrength.value as number, (v) => (worldUniforms.reflectStrength.value = v));
