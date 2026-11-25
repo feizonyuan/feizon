@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>THE HALL</title>
+<style>
+  :root { --hud: #f4f4f0; }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  #app canvas { display: block; width: 100vw; height: 100vh; cursor: none; }
+  #hud { position: fixed; inset: 0; pointer-events: none; color: var(--hud); display: none;
+    font: 600 clamp(12px, 1.35vw, 19px)/1.35 "JetBrains Mono", "Courier New", monospace; letter-spacing: 0.06em;
+    text-shadow: 0 0 2px #000, 0 1px 2px rgba(0,0,0,.8); }
+  #hud .tl { position: absolute; left: 3.2vw; top: 3.2vh; }
+  #hud .tr { position: absolute; right: 3.2vw; top: 3.2vh; text-align: right; }
+  #hud .bl { position: absolute; left: 3.2vw; bottom: 3.2vh; }
+  #hud .br { position: absolute; right: 3.2vw; bottom: 3.2vh; text-align: left; }
+  #hud .rec i { display: inline-block; width: .7em; height: .7em; border-radius: 50%; background: #ff2a1f; margin-right: .45em; box-shadow: 0 0 6px #ff2a1f; }
+  #hud .meter { letter-spacing: 0; }
+  #hud .batt { display: inline-flex; align-items: center; vertical-align: -0.1em; }
+  #hud .battbody { width: 1.9em; height: .85em; border: 2px solid var(--hud); padding: 1px; box-sizing: border-box; display: inline-block; }
+  #hud .battbody span { display: block; height: 100%; background: var(--hud); }
+  #hud .battcap { width: 3px; height: .4em; background: var(--hud); }
+  #objective { position: absolute; left: 50%; top: 3.2vh; transform: translateX(-50%); font-size: .78em; opacity: .85; text-align: center; max-width: 46vw; }
+  #prompt { position: absolute; left: 50%; top: 58%; transform: translateX(-50%); padding: .3em .8em; background: rgba(0,0,0,.35); transition: opacity .15s; opacity: 0; }
+  #msg { position: absolute; left: 50%; bottom: 14vh; transform: translateX(-50%); opacity: 0; transition: opacity .4s; text-align: center; max-width: 70vw; }
+  #msg.show { opacity: 1; }
+  #note { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-1.5deg); background: #d9d4c2; color: #23232c; text-shadow: none;
+    font: 16px/1.5 "Courier New", monospace; padding: 26px 32px; min-width: 280px; display: none; box-shadow: 0 10px 50px #000; }
+  #note.show { display: block; }
+  #note .hint { margin-top: 14px; opacity: .6; font-size: 13px; }
+  .crosshair { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: rgba(255,255,255,.35); }
+  #title, #overlay { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #e9e9e4;
+    font-family: "JetBrains Mono", "Courier New", monospace; background: radial-gradient(ellipse at center, rgba(0,0,0,.35), rgba(0,0,0,.88)); cursor: pointer; text-align: center; }
+  #overlay { display: none; background: rgba(0,0,0,.82); }
+  #title h1, #overlay h1 { font-size: clamp(40px, 9vw, 120px); letter-spacing: .25em; margin: 0 0 .2em .25em; font-weight: 900; text-shadow: 3px 0 #ff2a1f, -3px 0 #23d6ff; }
+  #title p, #overlay p { margin: .35em; opacity: .85; letter-spacing: .08em; }
+  #title .keys { margin-top: 2em; font-size: 14px; line-height: 1.9; opacity: .75; }
+  #title .start { margin-top: 2.2em; padding: .7em 1.6em; border: 1px solid #e9e9e4; animation: blink 1.6s infinite; }
+  .small { font-size: 14px; opacity: .7; line-height: 1.7; }
+  .glitch { animation: jitter .12s infinite; }
+  @keyframes blink { 50% { opacity: .35; } }
+  @keyframes jitter { 0% { transform: translate(0,0); } 33% { transform: translate(-3px,1px); } 66% { transform: translate(2px,-2px); } }
+  #debug { position: fixed; right: 10px; top: 120px; width: 300px; background: rgba(0,0,0,.75); color: #ddd; font: 12px monospace; padding: 10px; z-index: 10; }
+  #debug label { display: grid; grid-template-columns: 110px 1fr 50px; gap: 6px; align-items: center; margin: 3px 0; }
+  #debug #fps { margin-top: 8px; color: #8f8; }
+</style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="hud"></div>
+  <div id="title">
+    <h1>THE HALL</h1>
+    <p>CORRIDOR A · NIGHT PATROL · 夜間巡回</p>
+    <p class="small">找到 3 枚保险丝，修复配电箱，从走廊尽头离开。<br>它只会在你不看它的时候移动。</p>
+    <div class="keys">
+      WASD 移动 · SHIFT 快走 · 鼠标 环顾<br>
+      E 交互 · F 手电筒 · C 自动巡检演示<br>
+      建议佩戴耳机
+    </div>
+    <div class="start">CLICK TO START RECORDING</div>
+  </div>
+  <div id="overlay"></div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
