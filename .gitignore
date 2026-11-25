@@ -1,0 +1,2 @@
+# Rendered videos go to Google Drive, not git
+*.mp4
