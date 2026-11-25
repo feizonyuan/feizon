@@ -40,6 +40,8 @@ async function boot() {
   const audio = new AudioSystem();
   const { pipeline, bloomNode } = createPost(renderer, scene, camera);
   const game = new Game(level, rig, entity, audio, hud, scene);
+  rig.onLockChange = (l) => game.onLockChange(l);
+  rig.onLockError = () => game.onLockError();
   (window as any).__game = game;
 
   // ---------------------------------------------------------- title / overlay clicks
@@ -52,6 +54,7 @@ async function boot() {
     audio.addHum(new THREE.Vector3(5.4, 3, -8), 100, 'square', 0.012, 2500);
     audio.addHum(new THREE.Vector3(5.4, 3, -24), 100, 'square', 0.012, 2500);
     game.state = 'play';
+    game.lockGrace = 1.5;
     hud.setVisible(true);
     hud.message('NIGHT PATROL — CORRIDOR A. THE DOOR LOCKED BEHIND YOU.', 5);
     rig.lock();

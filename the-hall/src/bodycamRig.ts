@@ -29,7 +29,9 @@ export class BodycamRig {
     this.camera = camera;
     document.addEventListener('pointerlockchange', () => {
       this.locked = document.pointerLockElement === this.dom;
+      this.onLockChange(this.locked);
     });
+    document.addEventListener('pointerlockerror', () => this.onLockError());
     document.addEventListener('mousemove', (e) => {
       if (!this.locked || !this.enabled) return;
       this.targetYaw -= e.movementX * this.sensitivity;
@@ -41,7 +43,16 @@ export class BodycamRig {
     window.addEventListener('blur', () => this.keys.clear());
   }
 
-  lock() { this.dom.requestPointerLock?.(); }
+  onLockChange: (locked: boolean) => void = () => {};
+  onLockError: () => void = () => {};
+
+  /** Request pointer lock. Chrome refuses for ~1s after the user pressed Esc; failures are reported via onLockError. */
+  lock() {
+    try {
+      const p = this.dom.requestPointerLock?.() as unknown as Promise<void> | undefined;
+      if (p && typeof p.catch === 'function') p.catch(() => this.onLockError());
+    } catch { this.onLockError(); }
+  }
 
   reset(x: number, z: number, yaw: number) {
     this.pos.set(x, 0, z); this.vel.set(0, 0, 0);

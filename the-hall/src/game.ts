@@ -407,7 +407,8 @@ export class Game {
     if (this.powerRestored && rig.pos.z < L.exitZ) this.startEnding();
 
     // pointer lock lost -> pause
-    if (!rig.locked && !this.hud.noteOpen && this.frozenShot < 0) this.pause();
+    this.lockGrace -= dt;
+    if (!rig.locked && !this.hud.noteOpen && this.frozenShot < 0 && this.lockGrace <= 0) this.pause();
   }
 
   pause() {
@@ -416,11 +417,26 @@ export class Game {
     this.showOverlay('<h1>PAUSED</h1><p>CLICK TO RESUME</p>');
   }
 
+  /** Ask for pointer lock; the game only resumes once the browser actually grants it. */
   resume() {
-    this.state = 'play';
-    this.hideOverlay();
+    if (this.state !== 'paused') return;
+    this.showOverlay('<h1>PAUSED</h1><p>RESUMING…</p>');
     this.rig.lock();
   }
+
+  /** Called from pointerlockchange. */
+  onLockChange(locked: boolean) {
+    if (locked && this.state === 'paused') {
+      this.state = 'play';
+      this.hideOverlay();
+      this.lockGrace = 0.5;
+    }
+  }
+
+  onLockError() {
+    if (this.state === 'paused') this.showOverlay('<h1>PAUSED</h1><p>CLICK TO RESUME</p><p class="small">浏览器需要约 1 秒冷却，请稍后再点击</p>');
+  }
+  lockGrace = 0;
 
   die() {
     this.state = 'dying';
@@ -473,6 +489,7 @@ export class Game {
     this.state = 'play';
     this.hideOverlay();
     this.hud.message('TAPE REWOUND', 2);
+    this.lockGrace = 1.5;
     this.rig.lock();
   }
 
