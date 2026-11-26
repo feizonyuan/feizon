@@ -1,165 +1,331 @@
 {
+ "title": "Perro, pero, pelo, pera",
  "speakers": {
   "Shiba": "Algenib",
   "Hammy": "Leda"
  },
- "lines": [
-  {
-   "id": "l01",
-   "who": "Shiba",
-   "say": "Spanish is easy, right?",
-   "zh": "西班牙语很简单的",
-   "fg": "Spanish is easy"
-  },
-  {
-   "id": "l02",
-   "who": "Hammy",
-   "say": "Oh really? How do you say \"how\" in Spanish?",
-   "zh": "那\"怎么\"用西班牙语怎么说？",
-   "fg": "\"how\" in Spanish?"
-  },
-  {
-   "id": "l03",
-   "who": "Shiba",
-   "say": "Cómo.",
-   "zh": "怎么",
-   "fg": "cómo"
-  },
-  {
-   "id": "l04",
-   "who": "Hammy",
-   "say": "I eat?",
-   "zh": "我吃",
-   "fg": "I eat"
-  },
-  {
-   "id": "l05",
-   "who": "Shiba",
-   "say": "Como.",
-   "zh": "我吃",
-   "fg": "como"
-  },
-  {
-   "id": "l06",
-   "who": "Hammy",
-   "say": "Like?",
-   "zh": "像",
-   "fg": "like"
-  },
-  {
-   "id": "l07",
-   "who": "Shiba",
-   "say": "Como.",
-   "zh": "像",
-   "fg": "como"
-  },
-  {
-   "id": "l08",
-   "who": "Hammy",
-   "say": "Since?",
-   "zh": "因为",
-   "fg": "since"
-  },
-  {
-   "id": "l09",
-   "who": "Shiba",
-   "say": "Como.",
-   "zh": "因为",
-   "fg": "como",
-   "reuse": "l05"
-  },
-  {
-   "id": "l10",
-   "who": "Hammy",
-   "say": "About ten?",
-   "zh": "大约十个",
-   "fg": "about ten"
-  },
-  {
-   "id": "l11",
-   "who": "Shiba",
-   "say": "Como diez.",
-   "zh": "大约十个",
-   "fg": "como diez"
-  },
-  {
-   "id": "l12",
-   "who": "Hammy",
-   "say": "How do I eat?",
-   "zh": "我怎么吃？",
-   "fg": "How do I eat?"
-  },
-  {
-   "id": "l13",
-   "who": "Shiba",
-   "say": "¿Cómo como?",
-   "zh": "我怎么吃？",
-   "fg": "¿Cómo como?"
-  },
-  {
-   "id": "l14",
-   "who": "Hammy",
-   "say": "I eat like I eat!",
-   "zh": "我像我吃那样吃！",
-   "fg": "I eat like I eat!"
-  },
-  {
-   "id": "l15",
-   "who": "Shiba",
-   "say": "Como como como.",
-   "zh": "我像我吃那样吃",
-   "fg": "Como como como."
-  },
-  {
-   "id": "l16",
-   "who": "Hammy",
-   "say": "Okay, try this! What do you mean, how do I eat? Since I eat like I eat... I eat about ten!",
-   "zh": "那试试这个：什么叫我怎么吃？因为我就这么吃，所以我吃大约十个！",
-   "fg": "Try this!",
-   "chunks": [
-    {
-     "fg": "Okay, try this!",
-     "zh": "那试试这个！"
-    },
-    {
-     "fg": "What do you mean, how do I eat?",
-     "zh": "什么叫我怎么吃？"
-    },
-    {
-     "fg": "Since I eat like I eat...",
-     "zh": "因为我就这么吃……"
-    },
-    {
-     "fg": "I eat about ten!",
-     "zh": "所以我吃大约十个！"
-    }
-   ]
-  }
- ],
- "rap": [
-  {
-   "id": "r1",
-   "say": "¿Cómo que cómo como?",
-   "zh": "什么叫我怎么吃？"
-  },
-  {
-   "id": "r2",
-   "say": "Como como como como,",
-   "zh": "因为我就这么吃，"
-  },
-  {
-   "id": "r3",
-   "say": "como como diez.",
-   "zh": "我吃大约十个。"
-  },
-  {
-   "id": "r4",
-   "say": "¿Cómo como? ¡Como como como!",
-   "zh": "我怎么吃？我就这么吃！"
-  }
- ],
  "models": {
   "Shiba": "gemini-3.8-flash-lite-tts",
   "Hammy": "gemini-3.1-flash-tts-preview"
- }
+ },
+ "takes": [
+  {
+   "id": "s_ans",
+   "who": "Shiba",
+   "text": "Perro.\n\nPero.\n\nPelo.\n\nPera.\n\nCerro.\n\nHierro.\n\nPuerro.\n\nBarro.",
+   "clips": [
+    "a_perro",
+    "a_pero",
+    "a_pelo",
+    "a_pera",
+    "a_cerro",
+    "a_hierro",
+    "a_puerro",
+    "a_barro"
+   ],
+   "weights": [
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2
+   ]
+  },
+  {
+   "id": "s_verse",
+   "who": "Shiba",
+   "text": "Pero el perro del cerro,\ntiene pelo de hierro,\nse come la pera\ny el puerro en el barro.",
+   "clips": [
+    "v1",
+    "v2",
+    "v3",
+    "v4"
+   ],
+   "weights": [
+    7,
+    7,
+    6,
+    7
+   ]
+  },
+  {
+   "id": "s_burro",
+   "who": "Shiba",
+   "text": "Burro.",
+   "clips": [
+    "e_burro"
+   ]
+  },
+  {
+   "id": "s_tu",
+   "who": "Shiba",
+   "text": "Eres tú.",
+   "clips": [
+    "e_tu"
+   ]
+  },
+  {
+   "id": "h_dog",
+   "who": "Hammy",
+   "text": "Oh yeah? How do you say \"dog\"?",
+   "clips": [
+    "h_dog"
+   ]
+  },
+  {
+   "id": "h_qs",
+   "who": "Hammy",
+   "text": "But?\n\nFur?\n\nPear?\n\nHill?\n\nIron?\n\nLeek?\n\nMud?",
+   "clips": [
+    "q_but",
+    "q_fur",
+    "q_pear",
+    "q_hill",
+    "q_iron",
+    "q_leek",
+    "q_mud"
+   ],
+   "weights": [
+    1,
+    1,
+    1,
+    1,
+    2,
+    1,
+    1
+   ]
+  },
+  {
+   "id": "h_challenge",
+   "who": "Hammy",
+   "text": "Okay, smart dog. Try this! But the dog from the hill has iron fur, and eats the pear and the leek in the mud!",
+   "clips": [
+    "h_challenge"
+   ]
+  },
+  {
+   "id": "h_hook",
+   "who": "Hammy",
+   "text": "Cerro!\n\nHierro!\n\nPuerro!\n\nBarro!",
+   "clips": [
+    "k_cerro",
+    "k_hierro",
+    "k_puerro",
+    "k_barro"
+   ],
+   "weights": [
+    2,
+    2,
+    2,
+    2
+   ]
+  },
+  {
+   "id": "h_donkey",
+   "who": "Hammy",
+   "text": "And... donkey?",
+   "clips": [
+    "e_donkey"
+   ]
+  },
+  {
+   "id": "h_oye",
+   "who": "Hammy",
+   "text": "¡Oye!",
+   "clips": [
+    "e_oye"
+   ]
+  }
+ ],
+ "reuse": {
+  "l01": "audio/raw/lines/l01.wav"
+ },
+ "subs": {
+  "l01": [
+   "西班牙语很简单的",
+   "Spanish is easy"
+  ],
+  "h_dog": [
+   "那\"狗\"怎么说？",
+   "\"dog\"?"
+  ],
+  "a_perro": [
+   "狗",
+   "perro"
+  ],
+  "q_but": [
+   "但是",
+   "but"
+  ],
+  "a_pero": [
+   "但是",
+   "pero"
+  ],
+  "q_fur": [
+   "毛",
+   "fur"
+  ],
+  "a_pelo": [
+   "毛",
+   "pelo"
+  ],
+  "q_pear": [
+   "梨",
+   "pear"
+  ],
+  "a_pera": [
+   "梨",
+   "pera"
+  ],
+  "q_hill": [
+   "山丘",
+   "hill"
+  ],
+  "a_cerro": [
+   "山丘",
+   "cerro"
+  ],
+  "q_iron": [
+   "铁",
+   "iron"
+  ],
+  "a_hierro": [
+   "铁",
+   "hierro"
+  ],
+  "q_leek": [
+   "韭葱",
+   "leek"
+  ],
+  "a_puerro": [
+   "韭葱",
+   "puerro"
+  ],
+  "q_mud": [
+   "泥巴",
+   "mud"
+  ],
+  "a_barro": [
+   "泥巴",
+   "barro"
+  ],
+  "e_donkey": [
+   "那……驴呢？",
+   "And... donkey?"
+  ],
+  "e_burro": [
+   "驴",
+   "burro"
+  ],
+  "e_tu": [
+   "就是你。",
+   "Eres tú."
+  ],
+  "e_oye": [
+   "喂！",
+   "¡Oye!"
+  ]
+ },
+ "challenge_chunks": [
+  [
+   "好啊聪明狗，试试这个！",
+   "Okay, smart dog. Try this!"
+  ],
+  [
+   "山丘上的狗长着铁做的毛，",
+   "But the dog from the hill has iron fur,"
+  ],
+  [
+   "还在泥巴里吃梨和韭葱！",
+   "and eats the pear and the leek in the mud!"
+  ]
+ ],
+ "verse": [
+  {
+   "id": "v1",
+   "say": "Pero el perro del cerro,",
+   "zh": "可是山丘上的狗"
+  },
+  {
+   "id": "v2",
+   "say": "tiene pelo de hierro,",
+   "zh": "长着铁做的毛"
+  },
+  {
+   "id": "v3",
+   "say": "se come la pera",
+   "zh": "吃掉了梨"
+  },
+  {
+   "id": "v4",
+   "say": "y el puerro en el barro.",
+   "zh": "还有泥巴里的韭葱"
+  }
+ ],
+ "hook": [
+  {
+   "who": "Shiba",
+   "words": [
+    "perro",
+    "pero",
+    "pelo",
+    "pera"
+   ],
+   "zh": [
+    "狗",
+    "但是",
+    "毛",
+    "梨"
+   ]
+  },
+  {
+   "who": "Hammy",
+   "words": [
+    "cerro",
+    "hierro",
+    "puerro",
+    "barro"
+   ],
+   "zh": [
+    "山丘",
+    "铁",
+    "韭葱",
+    "泥巴"
+   ]
+  },
+  {
+   "who": "Shiba",
+   "words": [
+    "perro",
+    "pero",
+    "pelo",
+    "pera"
+   ],
+   "zh": [
+    "狗",
+    "但是",
+    "毛",
+    "梨"
+   ]
+  },
+  {
+   "who": "Both",
+   "words": [
+    "cerro",
+    "hierro",
+    "puerro",
+    "¡barro!"
+   ],
+   "zh": [
+    "山丘",
+    "铁",
+    "韭葱",
+    "泥巴"
+   ]
+  }
+ ],
+ "burro_note": "burro 在西语里也是\"笨蛋\""
 }

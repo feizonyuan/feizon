@@ -257,10 +257,6 @@ const shine = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.16), new THREE.Mesh
 shHead.add(shades);
 shiba.position.set(0.85, 0, -0.05); shiba.rotation.y = -0.38;
 
-// seeds for the gag
-const seedMat = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.35, clearcoat: 0.5 });
-const seeds = TL.seeds.map((_, i) => { const s = blob([0.028, 0.06, 0.018], (v, c) => c.set(Math.abs(v.x) > 0.55 ? '#f1ead8' : (Math.abs(v.x) > 0.25 ? '#3a3633' : '#1d1b1a')), seedMat, 24); scene.add(s); return s; });
-
 // rotating ring of rap text around Shiba's head
 const ringTex = canvasTex(4096, 256, (g, w, h) => {
   g.clearRect(0, 0, w, h); g.font = '700 150px Fredoka'; g.textBaseline = 'middle'; g.fillStyle = '#fff8ec';
@@ -278,51 +274,50 @@ const bokeh = new BokehPass(scene, camera, { focus: 3, aperture: 0.0035, maxblur
 composer.addPass(new OutputPass());
 
 // ---------------------------------------------------------------- timeline helpers
-const lines = TL.lines; const raps = TL.rap;
+const lines = TL.lines, verse = TL.verse, hook = TL.hook;
 const lineAt = t => lines.find(l => t >= l.start - 0.05 && t < l.end + 0.35);
-function speakerAt(t) { // who is "on" (for camera), holds until next line starts
-  let cur = lines[0]; for (const l of lines) if (t >= l.start - 0.12) cur = l; return cur;
-}
+function speakerAt(t) { let cur = lines[0]; for (const l of lines) if (t >= l.start - 0.12) cur = l; return cur; }
 const inRap = t => t >= TL.drop && t < TL.rap_end + 0.2;
-const beatPhase = t => ((t - TL.drop) / TL.beat);
+const beatPhase = t => (t - TL.grid0) / TL.beat;            // whole-film beat grid
+const barIdx = t => Math.floor((t - TL.drop) / TL.bar);
+const hookAt = t => hook.find(h => t >= h.start && t < h.start + TL.bar);
 
 // ---------------------------------------------------------------- shots
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const HPOS = () => hammy.position, SPOS = () => shiba.position;
+const shibaClose = (dt, push = 0.15) => { const s = SPOS(); const p = clamp(dt / 2) * push; return { pos: V(s.x + 0.25, 1.5, 3.0 - p), tgt: V(s.x - 0.42, 1.12, 0), fov: 30 }; };
+const hammyClose = (dt, push = 0.12, dur = 2) => { const h = HPOS(); const p = clamp(dt / dur) * push; return { pos: V(h.x + 0.15, 0.82, 3.0 - p), tgt: V(h.x - 0.5, 0.48, 0), fov: 30 }; };
+const twoShot = (k = 0, side = 0) => ({ pos: V(0.0 + 0.25 * side, 1.12, 4.75 - 0.45 * k), tgt: V(0.05 + 0.35 * side, 0.74, 0), fov: 32 });
 function shotFor(t) {
-  // returns {pos, tgt, fov, focus, t0}
-  if (t < TL.establish + 0.0 || t < lines[0].start) {
+  if (t < lines[0].start) {
     const k = easeInOut(t / (lines[0].start + 0.1));
-    return { pos: V(lerp(-1.2, 0.0, k), lerp(2.6, 1.15, k), lerp(8.5, 4.9, k)), tgt: V(0, lerp(1.2, 0.7, k), 0), fov: 32, t0: 0 };
+    return { pos: V(lerp(-1.2, 0.0, k), lerp(2.6, 1.15, k), lerp(8.5, 4.9, k)), tgt: V(0, lerp(1.2, 0.7, k), 0), fov: 32 };
   }
-  if (t >= TL.end_card) { const k = easeInOut((t - TL.end_card) / 3); return { pos: V(lerp(0, 0.2, k), lerp(1.1, 1.5, k), lerp(4.8, 6.2, k)), tgt: V(0, lerp(0.7, 0.9, k), 0), fov: 32, t0: TL.end_card }; }
-  if (t >= TL.boing - 0.25) return { pos: V(-0.3, 0.95, 4.2), tgt: V(-0.1, 0.65, 0), fov: 31, t0: TL.boing - 0.25 };
-  if (t >= TL.rap_end) { // gag: Hammy close-up, slow push
-    const k = (t - TL.rap_end) / 3; return { pos: V(-0.55 + 0.1 * k, 0.85, lerp(3.0, 2.7, k)), tgt: V(-1.15, 0.55, 0.1), fov: 30, t0: TL.rap_end };
+  if (t >= TL.end_card) { const k = easeInOut((t - TL.end_card) / 3); return { pos: V(lerp(0, 0.2, k), lerp(1.1, 1.5, k), lerp(4.8, 6.2, k)), tgt: V(0, lerp(0.7, 0.9, k), 0), fov: 32 }; }
+  if (t >= TL.boing - 0.1) return { pos: V(-0.3, 0.98, 4.4), tgt: V(-0.1, 0.68, 0), fov: 31 };
+  if (t >= TL.puff - 0.05) { // snap zoom on the furious hamster
+    const k = easeOut((t - TL.puff) / 0.25), h = HPOS(); return { pos: V(h.x + 0.1, 0.7, lerp(3.2, 2.45, k)), tgt: V(h.x - 0.25, 0.5, 0), fov: 30 };
   }
+  if (t >= TL.turn) { const k = easeInOut((t - TL.turn) / 1.2); return { pos: V(0.15, 1.1, lerp(4.6, 4.0, k)), tgt: V(0.1, 0.78, 0), fov: 31 }; }
+  if (t >= TL.rap_end) { const l = speakerAt(t), dt = t - l.start; return l.who === 'Shiba' ? shibaClose(dt, 0.25) : hammyClose(dt, 0.2); }
   if (t >= TL.drop) {
-    const bar = Math.floor((t - TL.drop) / TL.bar), tb = TL.drop + bar * TL.bar, k = (t - tb) / TL.bar;
-    if (bar === 0) { // hero reveal: low angle dolly-in on Shiba with shades
-      return { pos: V(lerp(1.6, 1.25, easeOut(k)), lerp(0.55, 0.75, k), lerp(3.4, 2.7, easeOut(k))), tgt: V(0.85, 1.05, 0), fov: 33, t0: tb };
+    const b = barIdx(t), tb = TL.drop + b * TL.bar, k = (t - tb) / TL.bar, s = SPOS(), h = HPOS();
+    const hk = hookAt(t);
+    if (hk) {
+      if (hk.who === 'Shiba') { const a = lerp(-0.25, 0.25, k); return { pos: V(s.x + 2.3 * Math.sin(a) - 0.1, 0.72, s.z + 2.3 * Math.cos(a)), tgt: V(s.x - 0.15, 1.05, s.z), fov: 34 }; }
+      if (hk.who === 'Hammy') return { pos: V(h.x + 0.35 - 0.2 * k, 0.55, 2.4 - 0.2 * k), tgt: V(h.x - 0.05, 0.5, h.z), fov: 34 };
+      return { pos: V(lerp(-0.4, 0.4, k), 0.85, lerp(4.6, 4.1, k)), tgt: V(0.05, 0.75, 0), fov: 33 };
     }
-    const mode = bar % 2;
-    if (mode === 1) { // orbit around Shiba
-      const a = lerp(-0.55, 0.35, k) + (bar === 3 ? 0.6 : 0); const s = SPOS();
-      return { pos: V(s.x + 2.5 * Math.sin(a), 0.75, s.z + 2.5 * Math.cos(a)), tgt: V(s.x, 1.0, s.z), fov: 34, t0: tb };
-    }
-    return { pos: V(lerp(-0.6, 0.4, k), 1.05, lerp(5.0, 4.6, k)), tgt: V(0.1, 0.8, 0), fov: 33, t0: tb };
+    if (b === 0) return { pos: V(lerp(1.6, 1.25, easeOut(k)), lerp(0.55, 0.75, k), lerp(3.4, 2.7, easeOut(k))), tgt: V(0.85, 1.05, 0), fov: 33 };
+    if (b % 2 === 1) { const a = lerp(-0.55, 0.35, k); return { pos: V(s.x + 2.5 * Math.sin(a), 0.75, s.z + 2.5 * Math.cos(a)), tgt: V(s.x, 1.0, s.z), fov: 34 }; }
+    return { pos: V(lerp(-0.6, 0.4, k), 1.05, lerp(5.0, 4.6, k)), tgt: V(0.1, 0.8, 0), fov: 33 };
   }
-  if (t >= TL.scratch - 0.05) { // snap zoom on Shiba before the drop
-    const k = easeOut((t - TL.scratch) / 0.35); const s = SPOS();
-    return { pos: V(s.x - 0.1, 1.35, lerp(4.0, 2.9, k)), tgt: V(s.x - 0.1, 1.1, 0), fov: 30, t0: TL.scratch };
-  }
-  const l = speakerAt(t);
-  const dt = t - (l.start - 0.12);
-  if (l.id === 'l01') return { pos: V(0.0, 1.15, lerp(4.9, 4.6, clamp(dt / 3))), tgt: V(0.05, 0.72, 0), fov: 32, t0: l.start - 0.12 };
-  if (l.who === 'Shiba') { const s = SPOS(); const push = clamp(dt / 2) * 0.15;
-    return { pos: V(s.x + 0.25, 1.5, 3.0 - push), tgt: V(s.x - 0.42, 1.12, 0), fov: 30, t0: l.start - 0.12 }; }
-  const h = HPOS(); const push = clamp(dt / (l.id === 'l16' ? 8 : 2)) * (l.id === 'l16' ? 0.5 : 0.12);
-  return { pos: V(h.x + 0.15, 0.82, 3.0 - push), tgt: V(h.x - 0.5, 0.48, 0), fov: 30, t0: l.start - 0.12 };
+  if (t >= TL.scratch - 0.05) { const k = easeOut((t - TL.scratch) / 0.35), s = SPOS(); return { pos: V(s.x - 0.1, 1.35, lerp(4.0, 2.9, k)), tgt: V(s.x - 0.1, 1.1, 0), fov: 30 }; }
+  const l = speakerAt(t), dt = t - (l.start - 0.12);
+  if (l.id === 'l01') return { pos: V(0.0, 1.15, lerp(4.9, 4.6, clamp(dt / 3))), tgt: V(0.05, 0.72, 0), fov: 32 };
+  if (l.id === 'h_challenge') return hammyClose(dt, 0.55, 8);
+  if (l.shot === 'two') return twoShot(clamp(dt / 0.4) * 0.6, l.who === 'Shiba' ? 1 : -1);   // double-time: punch toward the speaker
+  return l.who === 'Shiba' ? shibaClose(dt) : hammyClose(dt);
 }
 
 // ---------------------------------------------------------------- subtitles (2D overlay)
@@ -331,32 +326,34 @@ function drawText(txt, x, y, font, fill, stroke, sw, align = 'center') {
   ctx.strokeStyle = stroke; ctx.lineWidth = sw; ctx.strokeText(txt, x, y); ctx.fillStyle = fill; ctx.fillText(txt, x, y);
 }
 function project(v) { const p = v.clone().project(camera); return [(p.x + 1) / 2 * W, (1 - p.y) / 2 * H]; }
+const headPos = who => who === 'Shiba' ? shHead.getWorldPosition(new THREE.Vector3()) : hamBlob.getWorldPosition(new THREE.Vector3()).add(V(0, 0.15, 0));
+const INK = 'rgba(40,20,5,.85)', YEL = '#ffd84a', PINK = '#ff9ec4';
 function subtitle(t) {
-  if (t >= TL.drop - 0.05 && t < TL.rap_end + 0.1) return rapSubs(t);
+  if (t >= TL.drop - 0.05 && t < TL.rap_end + 0.1) return songSubs(t);
   if (t >= TL.end_card) return;
-  if (t >= TL.rap_end) { // gag caption
-    const k = clamp((t - TL.seeds[9] - 0.25) / 0.2) * (1 - clamp((t - TL.boing + 0.3) / 0.2)); if (k <= 0) return;
-    const s = backOut(k); ctx.save(); ctx.translate(W * 0.3, H * 0.36); ctx.scale(s, s);
-    drawText('大约十个', 0, -70, '900 46px "Noto Sans SC"', '#ffd84a', 'rgba(40,20,5,.85)', 9);
-    drawText('como diez', 0, 10, '700 84px Fredoka', '#ffffff', 'rgba(40,20,5,.85)', 12); ctx.restore(); return;
+  if (t >= TL.tu + 0.6 && t < TL.boing + 0.3) {  // footnote for the burro joke
+    const k = clamp((t - TL.tu - 0.6) / 0.25);
+    ctx.save(); ctx.globalAlpha = k; drawText('＊' + TL.burro_note, W / 2, 96, '900 40px "Noto Sans SC"', '#ffffff', INK, 8); ctx.restore();
   }
   const l = lineAt(t); if (!l) return;
   let zh = l.zh, fg = l.fg, t0 = l.start;
   if (l.chunks) { const tot = l.chunks.reduce((a, c) => a + c.fg.length, 0); let acc = 0;
     for (const c of l.chunks) { const s = l.start + (l.end - l.start) * acc / tot; if (t >= s - 0.05) { zh = c.zh; fg = c.fg; t0 = s; } acc += c.fg.length; } }
-  const head = l.who === 'Shiba' ? shHead.getWorldPosition(new THREE.Vector3()) : hamBlob.getWorldPosition(new THREE.Vector3()).add(V(0, 0.15, 0));
-  let [hx, hy] = project(head);
-  const x = clamp(hx - 560, 360, W - 360), y = clamp(hy - 60, 220, H - 200);
-  const k = clamp((t - t0 + 0.05) / 0.16), s = backOut(k);
+  const [hx, hy] = project(headPos(l.who));
+  const x = clamp(hx - 560, 380, W - 380), y = clamp(hy - 60, 220, H - 200);
+  const k = clamp((t - t0 + 0.05) / 0.14), s = backOut(k);
   const fade = 1 - clamp((t - l.end - 0.2) / 0.15);
   ctx.save(); ctx.globalAlpha = Math.min(k * 2, 1) * fade; ctx.translate(x, y); ctx.scale(s, s);
-  const big = fg.length > 22 ? 64 : 84;
-  drawText(zh, 0, -big * 0.95, '900 46px "Noto Sans SC"', '#ffd84a', 'rgba(40,20,5,.85)', 9);
-  drawText(fg, 0, 0, `700 ${big}px Fredoka`, '#ffffff', 'rgba(40,20,5,.85)', 12);
+  const big = fg.length > 26 ? 60 : fg.length > 14 ? 74 : 92;
+  const isAns = l.who === 'Shiba' && /^a_/.test(l.id);
+  drawText(zh, 0, -big * 0.95, '900 46px "Noto Sans SC"', YEL, INK, 9);
+  drawText(fg, 0, 0, `700 ${isAns ? 104 : big}px Fredoka`, '#ffffff', INK, 12);
   ctx.restore();
 }
-function rapSubs(t) {
-  const r = raps.find(r => t >= r.start - 0.1 && t < r.end + 0.4) ; if (!r) return;
+function songSubs(t) {
+  const hk = hookAt(t);
+  if (hk) return hookSubs(t, hk);
+  const r = verse.find(r => t >= r.start - 0.1 && t < r.start + TL.bar - 0.1); if (!r) return;
   const words = r.say.split(' '); const n = words.length;
   const k = clamp((t - r.start + 0.1) / 0.15);
   ctx.save(); ctx.globalAlpha = k;
@@ -366,97 +363,116 @@ function rapSubs(t) {
     const wt = r.start + (r.end - r.start) * i / n; const on = t >= wt - 0.03;
     const pop = on ? 1 + 0.25 * springPop(t - wt, 6, 10) : 1;
     ctx.save(); ctx.translate(x + widths[i] / 2, y); ctx.scale(pop, pop);
-    drawText(w, 0, 0, '700 92px Fredoka', on ? '#ffd84a' : '#ffffff', 'rgba(30,10,30,.9)', 13); ctx.restore(); x += widths[i];
+    drawText(w, 0, 0, '700 92px Fredoka', on ? YEL : '#ffffff', 'rgba(30,10,30,.9)', 13); ctx.restore(); x += widths[i];
   });
   drawText(r.zh, W / 2, H - 245, '900 44px "Noto Sans SC"', '#ffffff', 'rgba(30,10,30,.9)', 9);
+  ctx.restore();
+  // hype-man echoes pop up next to Hammy
+  for (const a of TL.adlibs) {
+    const d = t - a.start; if (d < -0.02 || d > 0.75) continue;
+    const [hx, hy] = project(headPos('Hammy')); const sc = backOut(clamp(d / 0.12)) * (1 - clamp((d - 0.55) / 0.2));
+    ctx.save(); ctx.translate(clamp(hx, 200, W - 200), clamp(hy - 170, 120, H - 300)); ctx.rotate(-0.12); ctx.scale(sc, sc);
+    drawText(a.word, 0, 0, '700 84px Fredoka', PINK, 'rgba(60,10,40,.9)', 12); ctx.restore();
+  }
+}
+function hookSubs(t, hk) {
+  const col1 = hk.who === 'Hammy' ? PINK : YEL;
+  ctx.save();
+  ctx.font = '700 104px Fredoka';
+  const ws = hk.words.map(w => w.w[0].toUpperCase() + w.w.slice(1)), gap = 78;
+  const widths = ws.map(w => ctx.measureText(w).width); const total = widths.reduce((a, b) => a + b, 0) + gap * 3;
+  let x = W / 2 - total / 2; const y = H - 150;
+  hk.words.forEach((w, i) => {
+    const on = t >= w.t - 0.03, d = t - w.t, cur = on && d < TL.beat;
+    const pop = on ? 1 + 0.16 * springPop(d, 6, 9) : 0.94;
+    const cx = x + widths[i] / 2;
+    ctx.save(); ctx.translate(cx, y - (cur ? 16 * Math.max(0, Math.sin(Math.min(d / TL.beat, 1) * Math.PI)) : 0)); ctx.scale(pop, pop);
+    ctx.globalAlpha = on ? 1 : 0.55;
+    const fill = hk.who === 'Both' ? (i % 2 ? PINK : YEL) : col1;
+    drawText(ws[i], 0, 0, '700 104px Fredoka', on ? fill : '#ffffff', 'rgba(30,10,30,.92)', 15);
+    ctx.globalAlpha = on ? 1 : 0.0;
+    drawText(w.zh, 0, 62, '900 42px "Noto Sans SC"', '#ffffff', 'rgba(30,10,30,.92)', 8);
+    ctx.restore(); x += widths[i] + gap;
+  });
   ctx.restore();
 }
 function endCard(t) {
   const k = clamp((t - TL.end_card) / 0.5); if (k <= 0) return;
-  ctx.save(); ctx.globalAlpha = 0.72 * k; ctx.fillStyle = '#1b0f08'; ctx.fillRect(0, 0, W, H); ctx.restore();
-  const s1 = backOut(clamp((t - TL.end_card - 0.1) / 0.35)), s2 = backOut(clamp((t - TL.end_card - 0.45) / 0.35)), s3 = clamp((t - TL.end_card - 0.8) / 0.4);
-  ctx.save(); ctx.translate(W / 2, H * 0.43); ctx.scale(s1, s1); drawText('¿Cómo como?', 0, 0, '700 150px Fredoka', '#ffd84a', '#3a1a08', 18); ctx.restore();
-  ctx.save(); ctx.translate(W / 2, H * 0.58); ctx.scale(s2, s2); drawText('¡Como como como!', 0, 0, '700 96px Fredoka', '#ffffff', '#3a1a08', 14); ctx.restore();
-  ctx.save(); ctx.globalAlpha = s3; drawText('我怎么吃？我就这么吃！', W / 2, H * 0.69, '900 50px "Noto Sans SC"', '#ffe9c4', '#3a1a08', 10); ctx.restore();
+  ctx.save(); ctx.globalAlpha = 0.74 * k; ctx.fillStyle = '#1b0f08'; ctx.fillRect(0, 0, W, H); ctx.restore();
+  const [l1, l2, l3] = TL.end_lines;
+  const s1 = backOut(clamp((t - TL.end_card - 0.1) / 0.35)), s2 = backOut(clamp((t - TL.end_card - 0.5) / 0.35)), s3 = clamp((t - TL.end_card - 0.9) / 0.4);
+  ctx.save(); ctx.translate(W / 2, H * 0.42); ctx.scale(s1, s1); drawText(l1, 0, 0, '700 132px Fredoka', YEL, '#3a1a08', 18); ctx.restore();
+  ctx.save(); ctx.translate(W / 2, H * 0.58); ctx.scale(s2, s2); drawText(l2, 0, 0, '700 132px Fredoka', PINK, '#3a1a08', 18); ctx.restore();
+  ctx.save(); ctx.globalAlpha = s3; drawText(l3, W / 2, H * 0.7, '900 46px "Noto Sans SC"', '#ffe9c4', '#3a1a08', 10); ctx.restore();
 }
 
 // ---------------------------------------------------------------- animate characters
 function animate(t) {
   const eS = envS('Shiba', t), eH = envS('Hammy', t);
   const rap = inRap(t), bp = beatPhase(t);
-  // line-start pops
+  const groove = (t > TL.grid0 + TL.bar && t < TL.challenge.start) ? Math.pow(1 - ((bp % 1) + 1) % 1, 4) : 0;   // bob on every beat during Q&A
   let popS = 0, popH = 0;
   for (const l of lines) { const p = springPop(t - l.start + 0.04, 7, 6) * 0.06; if (l.who === 'Shiba') popS += p; else popH += p; }
 
   // ---- Hammy
   const breathe = Math.sin(t * 2.4) * 0.012;
-  let hy = 0, hsq = 1 + breathe + 0.07 * eH + popH, hrz = 0.04 * Math.sin(t * 1.3), hry = 0.38, hrx = -0.05 * eH;
+  let hy = 0.025 * groove, hsq = 1 + breathe + 0.07 * eH + popH + 0.03 * groove, hrz = 0.04 * Math.sin(t * 1.3), hry = 0.38, hrx = -0.05 * eH;
   if (rap) { const b = bp % 1; hy = 0.12 * Math.abs(Math.sin(Math.PI * bp)); hrz = 0.18 * Math.sin(Math.PI * bp); hsq += 0.06 * Math.cos(2 * Math.PI * b); hry = 0.15; }
-  const lean = lines.find(l => l.id === 'l16'); if (t > lean.start && t < TL.scratch) hrx = -0.1 - 0.05 * eH;
-  // gag: cheeks fill with ~ten seeds
-  const eaten = TL.seeds.filter(s => t >= s + 0.18).length;
-  const cheek = 0.85 + 0.095 * eaten + (t >= TL.boing ? 0.15 * springPop(t - TL.boing, 5, 4) : 0);
-  if (t >= TL.boing) { const db = t - TL.boing; hy = Math.max(hy, 0.55 * Math.max(0, Math.sin(Math.min(db, 0.6) / 0.6 * Math.PI)) ); hsq += 0.12 * springPop(db - 0.55, 6, 6); }
-  hamCheeks.forEach((c, i) => { c.scale.setScalar(cheek); c.position.z = hamCheeks[i].userData.z0 ??= c.position.z; c.position.z = c.userData.z0 + 0.06 * Math.max(0, cheek - 0.85); });
+  if (t > TL.challenge.start && t < TL.scratch) hrx = -0.1 - 0.05 * eH;
+  // punchline: cheeks puff in fury, then boing
+  const fury = t >= TL.puff ? easeOut((t - TL.puff) / 0.3) : 0;
+  const cheek = 0.85 + 0.8 * fury + (t >= TL.boing ? 0.15 * springPop(t - TL.boing, 5, 4) : 0);
+  if (fury > 0 && t < TL.boing) { hrz += 0.04 * Math.sin(t * 70) * fury; hry = 0.6; }
+  if (t >= TL.boing) { const db = t - TL.boing; hy = Math.max(hy, 0.55 * Math.max(0, Math.sin(Math.min(db, 0.6) / 0.6 * Math.PI))); hsq += 0.12 * springPop(db - 0.55, 6, 6); }
+  hamCheeks.forEach(c => { c.userData.z0 ??= c.position.z; c.scale.setScalar(cheek); c.position.z = c.userData.z0 + 0.06 * Math.max(0, cheek - 0.85); });
+  blushMat.opacity = 0.55 + 0.4 * fury; blushMat.color.set(fury > 0 ? '#ff6f86' : '#ff8fa0');
   hamBody.scale.set(1 / Math.sqrt(hsq) * (1 + 0.03 * Math.max(0, cheek - 0.85)), hsq, 1 / Math.sqrt(hsq));
   hammy.position.y = hy; hammy.rotation.set(hrx, hry, hrz);
   const hamOpen = clamp(eH * 1.3);
   hamMouth.scale.set(1 + 0.3 * hamOpen, 0.4 + 1.8 * hamOpen, 1); hamTeeth.visible = hamOpen > 0.15;
-  const blinkH = blink(t, 3); hamEyes.forEach(e => e.scale.set(1, 1 - 0.9 * blinkH, 1));
-  hamEars.forEach((e, i) => e.rotation.z = (i ? -1 : 1) * (0.5 + 0.08 * Math.sin(t * 3 + i) + 0.2 * springPop(t - (popH > 0 ? t : 0), 8, 8)));
-  hamHands.forEach((p, i) => { p.position.y = (p.userData.y0 ??= p.position.y) + (rap ? 0.12 * Math.max(0, Math.sin(Math.PI * bp + i * Math.PI)) : 0.02 * eH); });
-  if (t >= TL.gag && t < TL.boing) hamHands.forEach(p => p.position.y = p.userData.y0 + 0.1 + 0.03 * Math.sin(t * 20));
+  const blinkH = blink(t, 3); hamEyes.forEach(e => e.scale.set(1, Math.min(1 - 0.9 * blinkH, 1 - 0.45 * fury), 1));
+  hamEars.forEach((e, i) => e.rotation.z = (i ? -1 : 1) * (0.5 + 0.08 * Math.sin(t * 3 + i) - 0.25 * fury));
+  hamHands.forEach((p, i) => { p.userData.y0 ??= p.position.y; p.position.y = p.userData.y0 + (rap ? 0.12 * Math.max(0, Math.sin(Math.PI * bp + i * Math.PI)) : 0.02 * eH + 0.06 * fury); });
 
   // ---- Shiba
-  let sy = 0, ssq = 1 + Math.sin(t * 1.9 + 1) * 0.008 + 0.035 * eS + popS * 0.6, srz = 0, sry = -0.38, hx = 0, hz = 0.03 * Math.sin(t * 0.9);
-  // deadpan nod on each answer
+  let sy = 0, ssq = 1 + Math.sin(t * 1.9 + 1) * 0.008 + 0.035 * eS + popS * 0.6 + 0.02 * groove, srz = 0, sry = -0.38, hx = 0.03 * groove, hz = 0.03 * Math.sin(t * 0.9);
   for (const l of lines) if (l.who === 'Shiba') { const d = t - l.start; if (d > 0 && d < 0.6) hx += 0.1 * Math.sin(d / 0.6 * Math.PI); }
-  if (t >= TL.scratch && t < TL.drop) { const k = easeInOut((t - TL.scratch) / 0.6); sry = lerp(-0.38, -0.12, k); } // turns to camera
+  if (t >= TL.scratch && t < TL.drop) sry = lerp(-0.38, -0.12, easeInOut((t - TL.scratch) / 0.6));
   if (rap) { const b = bp % 1; hx = 0.16 * Math.pow(Math.abs(Math.sin(Math.PI * bp)), 2) - 0.05; sy = 0.03 * Math.abs(Math.sin(Math.PI * bp)); srz = 0.05 * Math.sin(Math.PI * bp / 2); sry = -0.12 + 0.12 * Math.sin(Math.PI * bp / 4); ssq += 0.03 * Math.cos(2 * Math.PI * b); }
-  if (t >= TL.rap_end) sry = lerp(-0.12, -0.5, easeInOut((t - TL.rap_end) / 0.8)); // looks at Hammy during gag
+  if (t >= TL.rap_end) { sry = -0.12; if (t >= TL.turn) sry = lerp(-0.12, -1.0, easeInOut((t - TL.turn) / 0.35)); }   // slow deadpan turn to Hammy
   shBody.scale.set(1 / Math.sqrt(ssq), ssq, 1 / Math.sqrt(ssq));
   shiba.position.y = sy; shiba.rotation.set(0, sry, srz); shHead.rotation.set(hx, 0, hz);
   const shOpen = clamp(eS * 1.25);
   shMouth.scale.set(1 + 0.2 * shOpen, 0.25 + 1.9 * shOpen, 1); shTongue.visible = shOpen > 0.25; shTongue.position.y = -0.2 - 0.05 * shOpen;
-  const lidBase = rap ? 0.45 : 0.5; const blinkS = blink(t, 11);
-  shEyes.forEach(g => { const lid = g.getObjectByName('lid'); const k = Math.max(lidBase, blinkS);
-    lid.rotation.x = lerp(-0.2, 1.05, 1 - k) ; lid.scale.setScalar(1.0); });
+  const lidBase = rap ? 0.45 : (t >= TL.turn && t < TL.boing ? 0.62 : 0.5); const blinkS = blink(t, 11);
+  shEyes.forEach(g => { const lid = g.getObjectByName('lid'); lid.rotation.x = lerp(-0.2, 1.05, 1 - Math.max(lidBase, blinkS)); });
   shEars.forEach((e, i) => e.rotation.z = (i ? 1 : -1) * -0.35 + 0.05 * Math.sin(t * 2 + i) + (rap ? 0.08 * Math.sin(Math.PI * bp) : 0));
   tail.rotation.z = 0.6 + 0.15 * Math.sin(t * (rap ? Math.PI / TL.beat : 2.5));
 
-  // sunglasses drop just before the beat drop, stay through the rap
-  const gIn = TL.drop - 0.45, gOut = TL.rap_end + 0.6;
+  // sunglasses drop before the beat drop, slide off after the song
+  const gIn = TL.drop - 0.45, gOut = TL.rap_end + 0.3;
   if (t < gIn - 0.4 || t > gOut + 0.5) shades.visible = false;
   else { shades.visible = true; const k = clamp((t - (gIn - 0.4)) / 0.4); let y = lerp(1.6, 0.065, easeOut(k)) + (k >= 1 ? 0.03 * springPop(t - gIn, 5, 7) : 0);
     if (t > gOut) y = lerp(0.065, -0.5, clamp((t - gOut) / 0.35)); shades.position.set(0, y, 0.455); shades.rotation.set(-0.05, 0, 0); }
-  // ring text
+  // ring of lyrics around Shiba's head
   const rk = clamp((t - (TL.drop - 0.5)) / 0.5), rk2 = 1 - clamp((t - TL.rap_end) / 0.4);
   ring.visible = rk > 0 && rk2 > 0; const ringS = easeOut(rk) * rk2;
   ring.scale.set(ringS, 1, ringS); ring.material.opacity = ringS;
   const hp = shHead.getWorldPosition(new THREE.Vector3()); ring.position.set(hp.x, hp.y + 0.05, hp.z);
   ring.rotation.y = -(t - TL.drop) * 0.9;
 
-  // seeds: fly from the PIPAS jar to Hammy's mouth
-  const jarTop = seedJar.position.clone().add(V(0, 0.72, 0));
-  const mouth = hamMouth.getWorldPosition(new THREE.Vector3());
-  seeds.forEach((s, i) => { const s0 = TL.seeds[i] - 0.25, k = (t - s0) / 0.42;
-    if (k < 0 || k > 1) { s.visible = false; return; } s.visible = true;
-    s.position.lerpVectors(jarTop, mouth, k); s.position.y += 0.45 * Math.sin(Math.PI * k); s.rotation.set(t * 14 + i, t * 9, i);
-    s.scale.setScalar(1 - 0.5 * smooth(0.8, 1, k)); });
-
-  // lights: warm bar <-> party
+  // lights: warm bar <-> party (brighter in the hook)
   const party = smooth(TL.drop - 0.1, TL.drop + 0.1, t) * (1 - smooth(TL.rap_end, TL.rap_end + 0.5, t));
   const pulse = rap ? Math.pow(1 - (bp % 1), 3) : 0;
-  key.intensity = lerp(2.1, 0.9, party); hemi.intensity = lerp(0.35, 0.15, party); lamp.intensity = lerp(9, 3, party) ; wallGlow.intensity = lerp(3, 0.6, party);
-  disco.forEach((d, i) => { d.intensity = party * (7 + 16 * (Math.floor(bp) % 3 === i ? pulse : 0.15));
+  const hookOn = t >= TL.hook_start && t < TL.rap_end ? 1 : 0;
+  key.intensity = lerp(2.1, 0.9, party); hemi.intensity = lerp(0.35, 0.15, party); lamp.intensity = lerp(9, 3, party); wallGlow.intensity = lerp(3, 0.6, party);
+  disco.forEach((d, i) => { d.intensity = party * ((7 + 6 * hookOn) + (16 + 10 * hookOn) * (Math.floor(bp) % 3 === i ? pulse : 0.15));
     d.target.position.set(Math.sin(t * 1.3 + i * 2) * 2, 0.5, -1 + Math.cos(t * 1.1 + i) * 1.2); });
   scene.background.set('#2a1a12').lerp(col('#1a0f22'), party);
-  // lamp sway
   lamp.position.x = 0.15 * Math.sin(t * 0.8);
-  return { party, pulse };
+  return { party, pulse, hookOn };
 }
 function blink(t, seed) {
-  // deterministic blinks every ~2.5-4s
   let tt = 0.7 + hash(seed) * 1.5, i = 0;
   while (tt < t + 1) { const d = t - tt; if (d >= 0 && d < 0.16) return Math.sin(d / 0.16 * Math.PI); tt += 2.4 + 1.8 * hash(seed + ++i); }
   return 0;
@@ -466,19 +482,15 @@ function blink(t, seed) {
 function renderFrame(t) {
   const st = animate(t);
   const s = shotFor(t);
-  // handheld drift
-  const dr = 0.012, n = t - (s.t0 || 0);
-  s.pos.x += dr * Math.sin(t * 0.7) + 0.006 * Math.sin(t * 1.9); s.pos.y += dr * Math.sin(t * 0.9 + 1); s.tgt.x += 0.006 * Math.sin(t * 1.1);
-  if (inRap(t)) { s.pos.y += 0.02 * st.pulse; }
+  s.pos.x += 0.012 * Math.sin(t * 0.7) + 0.006 * Math.sin(t * 1.9); s.pos.y += 0.012 * Math.sin(t * 0.9 + 1); s.tgt.x += 0.006 * Math.sin(t * 1.1);
+  if (inRap(t)) s.pos.y += (0.02 + 0.02 * st.hookOn) * st.pulse;
   camera.position.copy(s.pos); camera.fov = s.fov; camera.updateProjectionMatrix(); camera.lookAt(s.tgt);
-  const focusDist = camera.position.distanceTo(s.tgt);
-  bokeh.uniforms.focus.value = focusDist; bokeh.uniforms.aperture.value = 0.009; bokeh.uniforms.maxblur.value = 0.012;
+  bokeh.uniforms.focus.value = camera.position.distanceTo(s.tgt); bokeh.uniforms.aperture.value = 0.009; bokeh.uniforms.maxblur.value = 0.012;
   composer.render();
   ctx.drawImage(renderer.domElement, 0, 0, W, H);
-  // warm vignette + beat flash
   const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.95);
   g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(20,8,2,${0.45 + 0.1 * st.party})`); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-  if (st.pulse > 0) { ctx.fillStyle = `rgba(255,120,200,${0.05 * st.pulse * st.party})`; ctx.fillRect(0, 0, W, H); }
+  if (st.pulse > 0) { ctx.fillStyle = `rgba(255,120,200,${(0.05 + 0.04 * st.hookOn) * st.pulse * st.party})`; ctx.fillRect(0, 0, W, H); }
   const fin = clamp(t / 0.35); if (fin < 1) { ctx.fillStyle = `rgba(0,0,0,${1 - fin})`; ctx.fillRect(0, 0, W, H); }
   subtitle(t); endCard(t);
   const fo = clamp((TL.duration - t) / 0.4); if (fo < 1) { ctx.fillStyle = `rgba(0,0,0,${1 - fo})`; ctx.fillRect(0, 0, W, H); }

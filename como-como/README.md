@@ -1,56 +1,68 @@
-# ¿Cómo como? · 仓鼠和柴犬的西语绕口令
+# Perro, pero, pelo, pera · 仓鼠和柴犬的西语绕口令
 
-一支约 51 秒的 3D 萌宠短片（16:9，1920×1080，30fps），**完全用代码生成**：Three.js 场景与角色、镜头、字幕、配乐、音效都由程序合成，配音由 Gemini TTS 生成。
+一支约 58 秒的 3D 萌宠短片（16:9，1920×1080，30fps），**完全用代码生成**：Three.js 场景、角色、镜头和字幕，numpy 合成的配乐与音效，Gemini TTS 配音。
 
-套路：「西班牙语很简单吧？」→ 快问快答一串同音词 → 拼成一句绕口令 → 雷鬼动说唱一口气唱完 → 结尾反转。
+成片：[`final/como-como.mp4`](final/como-como.mp4)（第 2 版。第 1 版「¿Cómo como?」可以在 git 历史里找到）
 
-成片：[`final/como-como.mp4`](final/como-como.mp4)
+## 为什么第 2 版更上头
 
-## 角色
+1. **用一串近音词，而不是同一个词**：perro（狗）、pero（但是）、pelo（毛）、pera（梨）、cerro（山丘）、hierro（铁）、puerro（韭葱）、barro（泥巴）。8 个意思完全不同、听起来几乎一样的词，越问越像在念咒。
+2. **整段问答都卡在 100 BPM 的拍子上**：问题落在第 1 拍，回答落在第 3 拍，每个回答还配一个音阶逐级升高的马林巴音；最后两小节变成双倍速。
+3. **副歌直接采样问答里的回答**：把柴犬答过的词剪成一拍一个，变调到弗拉门戈味的旋律上（A 落到 E 上再解决到 G#），再叠一层声码器。柴犬和仓鼠一人一句，最后一小节两人齐唱。
+4. **主歌有和声员**：柴犬每唱完一句，仓鼠在第 4 拍喊出这句的最后一个词（¡cerro! ¡hierro! ¡barro!）。
+5. **结尾反转**：「那……驴呢？」「Burro.」……柴犬慢慢转头：「Eres tú.（就是你。）」burro 在西语里也是"笨蛋"。仓鼠气鼓鼓，boing！
 
-- **Hammy**（金色圆仓鼠，红色贝雷帽）：提问的一方，尖细可爱的卡通音（原声升 7 个半音）
-- **Shiba**（胖柴犬，红色领巾，半眯眼）：西语「专家」，低沉淡定（原声降约 2 个半音），说唱时戴墨镜
+## 歌词
 
-场景：西班牙小吧台，背景墙是蓝白花砖（azulejo），柜台上放着一罐 **PIPAS**（葵花籽），结尾的笑点就是它。
+主歌（柴犬，一小节一句）：
 
-## 台词
+> Pero el perro del cerro, *（¡cerro!）*
+> tiene pelo de hierro, *（¡hierro!）*
+> se come la pera
+> y el puerro en el barro. *（¡barro!）*
 
-| 时间 | 角色 | 台词 | 字幕 |
-|---|---|---|---|
-| 0.9s | Shiba | Spanish is easy, right? | 西班牙语很简单的 |
-| 3.6s | Hammy | Oh really? How do you say "how" in Spanish? | 那"怎么"用西班牙语怎么说？ |
-| 6.8–16.6s | 快问快答 | how → **cómo**，I eat → **como**，like → **como**，since → **como**，about ten → **como diez** | |
-| 16.9–23.4s | | How do I eat? → **¿Cómo como?**；I eat like I eat! → **Como como como.** | |
-| 23.9s | Hammy | Okay, try this! What do you mean, how do I eat? Since I eat like I eat... I eat about ten! | 出题 |
-| 31.4s | | 唱片刮擦声，柴犬转向镜头，墨镜落下 | |
-| 32.5s | | 鼓点进入，环形文字绕头旋转，彩色灯光 | |
-| 35–45s | Shiba（说唱） | ¿Cómo que cómo como? / Como como como como, / como como diez. / ¿Cómo como? ¡Como como como! | 卡拉 OK 逐词高亮 |
-| 45.3s | | 仓鼠从 PIPAS 罐里一颗颗吃了「大约十个」（como diez）瓜子，腮帮子鼓起，boing！ | |
-| 48.4s | | 片尾卡：¿Cómo como? ¡Como como como! | |
+副歌（一拍一个词）：
+
+> 🐕 Perro, pero, pelo, pera
+> 🐹 Cerro, hierro, puerro, barro
+> 🐕 Perro, pero, pelo, pera
+> 🐕🐹 Cerro, hierro, puerro, ¡barro!
+
+## 时间线
+
+| 时间 | 内容 |
+|---|---|
+| 0.6s | Shiba：Spanish is easy, right? |
+| 3–19.7s | 卡拍问答：dog/but/fur/pear 每小节一对，hill/iron/leek/mud 双倍速 |
+| 19.8–28s | Hammy 出题（英文念一遍整句），配张力吉他轮指 |
+| 28.2s | 搓碟、柴犬转头、墨镜落下、军鼓 fill |
+| 29.4–39s | 雷鬼动主歌，环形歌词绕头旋转，仓鼠在第 4 拍喊回声 |
+| 39–48.6s | 副歌（808 低音、拍手、旋律主音） |
+| 49–54s | burro 梗，仓鼠鼓腮，boing |
+| 54.8s | 片尾卡 |
 
 ## 技术管线
 
 ```
-script.json ─> scripts/tts.py          Gemini TTS，每句单独请求（纯文本，不带指令，避免被读出来）
-            └> scripts/build_audio.py  rubberband 变调/EQ → 排时间轴 → numpy 合成配乐与音效 → 混音
-                   ├─ timeline.json    唯一时间源（台词、节拍、各事件时间点）
-                   ├─ src/data.js      时间轴 + 每个角色的口型包络（60Hz）
+script.json ─> scripts/tts.py          每个 take 一次请求，只发纯文本；多词 take 按停顿切成单词片段
+            └> scripts/build_audio.py  100 BPM 网格排时间轴 → 角色变调/EQ → 副歌片段变调到旋律 + 声码器
+                   │                    → numpy 合成吉他/dembow/808/音效 → 混音
+                   ├─ timeline.json    唯一时间源
+                   ├─ src/data.js      时间轴 + 口型包络
                    └─ audio/mix.wav
 src/main.js ─> scripts/render.js       无头 Chromium（SwiftShader WebGL）逐帧渲染 → ffmpeg
 scripts/mux.sh                         拼接分段 + 混入音轨 → final/como-como.mp4
 ```
 
-- 每一帧都是时间 `t` 的纯函数（眨眼、灯光、瓜子轨迹都是确定性的），所以可以分段并行渲染、任意抽帧预览。
-- 配乐：前半段是尼龙弦吉他（Karplus-Strong 合成）弹安达卢西亚终止式 Am–G–F–E，后半段是 96 BPM 的 dembow 雷鬼动节奏。说唱的每一句都卡在小节线上，人声出现时音乐自动压低（ducking）。
-- 角色用球体加顶点色拼出软胶玩偶质感（MeshPhysicalMaterial 的 sheen 和 clearcoat），加上 ACES 色调映射和 BokehPass 景深。
+TTS 的原始录音放在 `audio/raw/takes/`，切好的单词片段在 `audio/raw/clips/`。这些都提交进了仓库，因为免费额度每天只有少量请求，重新生成并不容易。
 
 ## 复现
 
 ```bash
 npm install
-python3 scripts/tts.py            # 需要 Gemini API（GEMINI_KEY_FILE 或代理注入）
+python3 scripts/tts.py            # 需要 Gemini API；已有 takes 时会跳过，只重新切分
 python3 scripts/build_audio.py    # 需要 numpy、scipy，以及带 rubberband 的 ffmpeg
-node scripts/render.js --stills 2,18.5,36.2          # 抽帧预览 → out/stills/
-for i in 0 1 2; do node scripts/render.js --from $((i*516)) --to $(((i+1)*516)) --out seg$i.mp4 & done; wait
+node scripts/render.js --stills 5.6,40,52.8          # 抽帧预览 → out/stills/
+for i in 0 1 2; do node scripts/render.js --from $((i*584)) --to $(((i+1)*584)) --out seg$i.mp4 & done; wait
 bash scripts/mux.sh
 ```
